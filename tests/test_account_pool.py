@@ -27,22 +27,28 @@ class _FakeReg:
 def pool(tmp_path):
     from api.account_pool import AccountPool
 
-    p = AccountPool(str(tmp_path / "acc.db"))
+    # v20.3.11 隔离修复：tmp_path 在 pytest-asyncio session loop 下可能跨测试复用
+    #（前面测试的 nanobanana 残留 → dashboard_counts 污染）。用唯一文件名保证
+    # 每测试独立 DB 文件（即使临时目录复用也互不干扰）。
+    import uuid
+
+    p = AccountPool(str(tmp_path / f"acc-{uuid.uuid4().hex}.db"))
     yield p
     # P2-3: aiosqlite 连接需在 loop 内关闭
+    # v20.3.11 隔离修复（关键）：不调 raw.close()——它在 aiosqlite worker 线程回调
+    # 回写时触发 "Event loop is closed"（loop 已关但线程残留），损坏连接状态 → 下个
+    # 测试 _ensure_conn 复用时读到脏状态（dashboard_counts 跨测试污染根因）。
+    # 只停 worker 线程 + 置空 _conn/_initialized（新测试走全新连接路径）。
     try:
         loop = asyncio.get_event_loop()
         if loop.is_running():
-            # 测试同步 fixture teardown：用 ensure_future + run_until_complete 不安全，
-            # 改用 _force_stop（aiosqlite 底层 sqlite3 close + 停工作线程）
             conn = getattr(p, "_conn", None)
             if conn is not None:
-                raw = getattr(conn, "_connection", None)
-                if raw is not None:
-                    raw.close()
                 stop = getattr(conn, "_stop_running", None)
                 if stop is not None:
                     stop()
+            p._conn = None
+            p._initialized = False
     except Exception:
         pass
 
@@ -360,6 +366,9 @@ class TestEmailPool:
 class TestAccountPoolDashboard:
     @pytest.mark.asyncio
     async def test_dashboard_structure(self, pool):
+        # v20.3.11 修复：先 add 一条再断言结构（空 DB 的 counts 无 nanobanana，
+        # 旧断言依赖跨测试污染才碰巧通过——唯一 DB 文件名修复后暴露真实缺陷）
+        await pool.add("nanobanana", "seed@x.com", "seed-cookie", credits=1)
         d = await pool.dashboard()
         for prov in ("nanobanana",):
             assert prov in d

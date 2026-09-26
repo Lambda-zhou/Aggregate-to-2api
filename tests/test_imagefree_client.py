@@ -168,17 +168,17 @@ class TestDownload:
         monkeypatch.setattr(
             "api.imagefree_client.socket.getaddrinfo", lambda host, port, **kw: [(2, 1, 6, "", ("93.184.216.34", 80))]
         )
-        monkeypatch.setattr("api.imagefree_client._get_client", lambda: _FakeClient._stream_oversize)
+        # v20.3.11：download_image 支持 client 注入（一次性 client 修复后不再调 _get_client）
         with pytest.raises(ImagefreeError, match="字节上限|超过"):
-            await download_image("http://example.com/big.png")
+            await download_image("http://example.com/big.png", client=_FakeClient._stream_oversize)
 
     @pytest.mark.asyncio
     async def test_download_ok(self, monkeypatch):
         monkeypatch.setattr(
             "api.imagefree_client.socket.getaddrinfo", lambda host, port, **kw: [(2, 1, 6, "", ("93.184.216.34", 80))]
         )
-        monkeypatch.setattr("api.imagefree_client._get_client", lambda: _FakeClient._stream_ok)
-        data = await download_image("http://example.com/x.png", max_bytes=1024 * 1024)
+        # v20.3.11：注入 client（_get_client patch 已失效，一次性 client 修复后）
+        data = await download_image("http://example.com/x.png", max_bytes=1024 * 1024, client=_FakeClient._stream_ok)
         assert data == b"chunk1-chunk2-"
 
 

@@ -3,6 +3,7 @@
 // 单独 try/catch —— 崩溃仅记该步 fail，不中断整体，最终退出码如实反映失败数
 // （不再被顶层 .catch 吞掉），保证 `npm run smoke` 是可信的回归门禁。
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { chromium } = require('playwright-core');
 
@@ -10,12 +11,25 @@ const BASE = process.env.E2E_BASE || "http://localhost:4510";
 let pass = 0, fail = 0;
 const ok = (name, cond) => { if (cond) { pass++; console.log('  ✅ ' + name); } else { fail++; console.log('  ❌ ' + name); } };
 
-const BROWSERS = 'C:/Users/Administrator.DESKTOP-EGNE9ND/AppData/Local/ms-playwright';
+// v20.3.11 修复：BROWSERS 路径不再硬编码本地 Windows（CI Linux 找不到导致 E2E 一直红）。
+// 发现顺序：env PLAYWRIGHT_BROWSERS_PATH > Playwright 默认缓存 > 自动（launch 不带 executablePath）。
 function findChromium() {
-  const dirs = fs.readdirSync(BROWSERS).filter(d => /^chromium-/.test(d) && !d.includes('headless')).sort().reverse();
-  for (const d of dirs) for (const sub of ['chrome-win64', 'chrome-win']) {
-    const exe = path.join(BROWSERS, d, sub, 'chrome.exe');
-    if (fs.existsSync(exe)) return exe;
+  const candidates = [
+    process.env.PLAYWRIGHT_BROWSERS_PATH,
+    path.join(os.homedir(), 'AppData', 'Local', 'ms-playwright'), // Windows
+    path.join(os.homedir(), '.cache', 'ms-playwright'),           // Linux/macOS
+  ].filter(Boolean);
+  for (const base of candidates) {
+    if (!fs.existsSync(base)) continue;
+    let dirs;
+    try { dirs = fs.readdirSync(base).filter(d => /^chromium-/.test(d) && !d.includes('headless')).sort().reverse(); }
+    catch { continue; }
+    for (const d of dirs) {
+      for (const sub of ['chrome-win64', 'chrome-win', 'chrome-linux', 'chrome-mac']) {
+        const exe = path.join(base, d, sub, sub === 'chrome-mac' ? 'Chromium' : 'chrome' + (sub.includes('win') ? '.exe' : ''));
+        if (fs.existsSync(exe)) return exe;
+      }
+    }
   }
   return null;
 }
@@ -34,7 +48,7 @@ async function step(name, fn) {
   let browser;
   try {
     browser = await chromium.launch({
-      executablePath: findChromium(),
+      ...(findChromium() ? { executablePath: findChromium() } : {}),
       args: ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
     });
     const page = await browser.newPage();

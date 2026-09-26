@@ -18,6 +18,7 @@ import os
 import socket
 import time
 from collections import deque
+from typing import Any
 from urllib.parse import urlsplit
 
 import httpx
@@ -319,6 +320,7 @@ async def download_image(
     image_url: str,
     timeout: float = 60.0,
     max_bytes: int = 4 * 1024 * 1024,
+    client: Any | None = None,
 ) -> bytes:
     """下载图片二进制（R2 URL 公开可访问）。SSRF 防护：拒绝私网/回环/链路本地地址。"""
     if MOCK_UPSTREAM:
@@ -343,8 +345,11 @@ async def download_image(
         a = ipaddress.ip_address(i[4][0])
         if a.is_private or a.is_loopback or a.is_link_local or a.is_reserved or a.is_multicast:
             raise ImagefreeError(f"不允许下载内网地址的图片: {image_url}")
-    # 一次性 client：避开共享池可能持有的坏 TLS 会话（与 _edit_client 同策略）
-    client = httpx.AsyncClient(timeout=httpx.Timeout(timeout))
+    # v20.3.1：一次性 client 避开共享池坏 TLS 会话；v20.3.11 支持注入（测试/复用）
+    own_client = None
+    if client is None:
+        client = httpx.AsyncClient(timeout=httpx.Timeout(timeout))
+        own_client = client
     buf = _PoolView(_buffer_pool.acquire())
     try:
         async with client.stream("GET", image_url, timeout=httpx.Timeout(timeout), headers={"Host": host}) as r:
@@ -355,7 +360,8 @@ async def download_image(
                     raise ImagefreeError(f"图片超过 {max_bytes} 字节上限")
             return bytes(buf)
     finally:
-        await client.aclose()
+        if own_client is not None:
+            await own_client.aclose()
         _buffer_pool.release(buf._buf)
 
 

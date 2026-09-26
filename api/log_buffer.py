@@ -10,7 +10,6 @@ import logging
 import re
 from collections import deque
 
-
 # v20.3.1 P1（终局审计）：/v1/logs 与 /v1/logs/ws 匿名公开，必须在 handler 层统一脱敏，
 # 防止业务 logger 写入的 api_key/token/prompt 片段/URL 参数经该通道泄露。
 # 匹配模式按「先长后短」顺序替换，避免短模式先吃掉长凭证的一部分。
