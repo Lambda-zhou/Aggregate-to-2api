@@ -69,6 +69,14 @@ jobs:
           IF_DB_FILE: "data/test.db"
           PYTHONUNBUFFERED: "1"
 
+      - name: 上传单测 junit 报告（排查用）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-unit-junit
+          path: /tmp/pytest-unit.xml
+          if-no-files-found: ignore
+
       - name: 启动 mock cf_solver 并运行集成测试
         # v7.7 缓解组合串扰：integration 与 chaos 分两轮跑（各自 fresh 进程内状态），
         # 避免混沌注入的 IP 桶/限流状态污染集成用例（本地 3 轮复现→分轮后收敛）。
@@ -111,6 +119,14 @@ jobs:
           IF_TURNSTILE_POLL_INTERVAL: "0.2"
           IF_TOKEN_POOL_SIZE: "2"
           PYTHONUNBUFFERED: "1"
+
+      - name: 上传集成 junit 报告（排查用）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-intg-junit
+          path: /tmp/pytest-intg.xml
+          if-no-files-found: ignore
 
   lint:
     name: 代码检查
