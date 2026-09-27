@@ -43,7 +43,7 @@
 
 ### 7. 文档 + 发版
 - `README.md` 提供商清单表加行；`docs/SOP.md` §1.1 模型数更新。
-- 版本 bump 全 8 处（pyproject×2/api.main/frontend/landing/compose×2/README badge）。
+- 版本 bump（v21 起）：`python scripts/sync_version.py --set X.Y.Z`（全链 9 文件 + e2e 契约）→ frontend/landing `npm run build` → `pytest tests/test_version_consistency.py -q` 全绿。
 - `verification-log` 追加「勿重跑」结论。
 - tag `v<版本>` push 触发 Deploy，生产 E2E（`E2E_BASE=... node e2e-smoke.cjs`）。
 - **验收**：Deploy 4 job 全绿 + 生产 healthz ok + 新 provider 在 `/v1/models`。

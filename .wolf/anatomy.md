@@ -106,6 +106,23 @@
 - `frontend/src/pages/Agent.tsx` — DAG 终态系统通知（动态 import `@tauri-apps/plugin-notification` 浏览器静默降级）
 - 签名私钥 `~/.tauri/tingfeng.key`（仓库外，构建注入 `TAURI_SIGNING_PRIVATE_KEY`）
 
+## 计划书/（2026-09-27）
+
+- `计划书/下一步改进指南.md` — v21.0.0 迭代升级方案（P0 移动原生/数据抗毁 + P1 运维观察闭环 + P2 工程质量），基线 v20.3.11，14 项缺口 + 7 批次 + 10 TDD + 15 验收项
+
+## v21.0.0 新增（2026-09-27 终局闭环批）
+
+- `workflow_status.md` — v21 终局闭环任务状态追踪（重建，git 曾标记 D）
+- `tests/test_version_consistency.py` — 版本全链门禁（3 用例，CI 首步 fail-fast）
+- `scripts/sync_version.py` — 全链版本同步（--set/--check/--dry-run）
+- `scripts/uptime_probe.py` — UptimeRobot 拨测模拟（连续 3 次 /v1/healthz）
+- `landing/public/manifest.webmanifest` + `pwa-192/512.png` + `apple-touch-icon.png` — PWA installable 资产
+- `landing/src/components/PwaInstallPrompt.vue` — PWA 安装提示（beforeinstallprompt/iOS 双路径）
+- `landing/public/sitemap.xml` + `robots.txt` — SEO（JSON-LD 已有）
+- `frontend/src/i18n/messages.zh|en.ts` — 补 dlq.* 25 key（DLQ 页 i18n 收尾，15/15 页全覆盖）
+- `frontend/src/pages/DLQ.tsx` — 去中文硬编码换 t()（含 aria/空态/通知）
+- `deploy/.env.production.example` — 补 LITESTREAM_* 六变量（§9 litestream 启用路径）
+
 ---
 
-*更新日期：2026-09-07*
+*更新日期：2026-09-27*

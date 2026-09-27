@@ -1,88 +1,68 @@
-# Workflow Status — 终局闭环总审计 / 生产化补强（Spec 008）→ Spec 009 门户重构
+# workflow_status — v21.0.0 终局闭环（001-v21-ar-closure）
 
-> 更新：2026-09-26 ｜ 上一版本：Phase A 参考项目对标（2026-09-22，已归档 docs/archived/）
-> 主项目：`C:\Users\Administrator.DESKTOP-EGNE9ND\Desktop\imagefree-2ai`（听风AI，v20.3.7（已发布 v20.3.0~v20.3.6））
-> 生产：20.204.27.154（ARM64 2C/4G）nginx 443 → imagefree-api 8100 + cfsolver 8001（camoufox）+ 代理池 1130
-> 编排：Spec Kit 009/010 + 主控工作流（v20.3.3~v20.3.6 已闭环）
+> 更新：2026-09-27 ｜ 规范来源：`.specify/specs/001-v21-ar-closure/`（constitution/spec/plan/tasks）｜ 蓝本：`计划书/下一步改进指南.md`
+> 规则：只记事实与证据；只有观察到交付物+验收证据才标记 done；外部受限项标注"待验证/L2 授权"不伪装。
 
-## 当前状态（2026-09-26）
+## 任务契约（验收标准表）
 
-| 域 | 状态 | 证据 |
-|----|------|------|
-| 提供商收敛 | ✅ imagefree/aifreeforever + tryingopen（nanobanana/falai 已下线） | registry=[imagefree,aifreeforever]+[tryingopen] |
-| 首页在线使用 | ✅ 门户 6 工具卡（对话/文生图/图生图/视频/PPT/Agent） | Playwright 真机验证全绿 |
-| tryingopen 真实调用 | ✅ IF_MOCK_UPSTREAM=0，chat SSE / agent plan 真实 | 实测回复真实文本 + 4 节点 DAG |
-| 代理池高并发 | ✅ IF_FREE_PROXY=1 启用，并发 4/4 completed | v20.2 fix `_is_upstream_ip_busy` |
-| cf_solver | ✅ camoufox ARM64 单次 ~3s | solve_success |
-| 管理后台收敛 | ✅ 首页 0 管理入口 + 0 运维链接；/admin 保留 | Playwright 断言 adminLinks=0 |
-| 画廊 | ✅ 9 张真实 R2 图瀑布流 | /v1/gallery count=9 |
-| 版本/Release | ✅ v20.3.0~v20.3.6 已发布（Latest v20.3.6） | gh release 逐版核验 |
-| 图生图真实可用 | ✅ /v1/edit 500→200（TLS 修复）+ 时长提示 | v20.3.1/v20.3.4 验证 |
-| 数据备份 | ✅ cron 每日 7 DB 热备 + 每周恢复演练 | v20.3.5/v20.3.6 验证 |
-| 教学化 explain | ✅ 后端接线 + 门户/管理台前端消费 | v20.3.3/v20.3.4/v20.3.6 验证 |
-| nginx 静态加速 | ✅ /assets immutable + gzip -62% | v20.3.2 验证 |
+| ID | 任务 | 验收标准 | 状态 | 证据 |
+|---|---|---|---|---|
+| T1 | test_version_consistency.py | 全链读取比对 + 当前应红（20.3.10 vs 20.3.11 / e2e 20.0.0） | ✅ 已闭环 | pytest 4 passed（3 原用例 + H1 文件存在断言） |
+| T2 | scripts/sync_version.py | --set/--check/--dry-run 幂等 | ✅ 已闭环 | dry-run/check/set 全验证；GBK reconfigure |
+| T3 | 测试隔离复现 + 修复 | 两实例独立状态，组合跑 0 污染 | ✅ 已闭环（v20.3.11 fixture 已修） | 组合跑 39 passed |
+| T4 | DLQ i18n | zh/en dlq.* key 平行 + DLQ.tsx 中文硬编码 0 | ✅ 已闭环 | i18n 测试 8/8 + vitest 296/296 |
+| T5 | PWA manifest/icon/组件 | manifest.webmanifest + icon + link + iOS meta + PwaInstallPrompt.vue | ✅ 已闭环（含 B1 修复） | landing build 成功，dist 含全部 PWA 产物 |
+| T6 | litestream 启用路径 | .env.production.example 六变量 + SOP §3 小节 + type:local 验收命令 | ✅ 已闭环（R2 凭证 L2 待授权） | 模板位齐全 |
+| T7 | uptime_probe.py + 观察栈命令 | 脚本语法可跑 + 文档含 compose obs 验证命令与真实指标名 | ✅ 已闭环（含 B2 修复） | py_compile 过；无服务 exit 1 |
+| T8 | SEO（sitemap/robots/JSON-LD/og） | landing/public 文件存在 + index.html 引用 | ✅ 已闭环 | 入 landing dist |
+| T9 | 旧产物处理 | 决策记录 + 清理或保留标注 | ⚠️ 已记录（含安全项） | 见 §旧产物处理决策 |
+| T10 | 版本统一 21.0.0 + dist 重建 | sync --check 全绿 + landing/frontend dist 重建 | ✅ 已闭环 | 全链 21.0.0；双 dist 重建成功 |
+| T11 | 独立审查线程 | 需求/逻辑/边界/质量/覆盖/运行 6 维审查 + 修复清单闭环 | 🔄 复验中 | 首轮 NEEDS_CHANGES（B1/B2 已修）；复验线程 a2c7df1c83432599f |
+| T12 | HTML 报告 + 测验 | 上下文/直觉/变更/测验生成 | ⏳ 待复验通过后 | |
+| T13 | 沉淀 skills/workflow | .claude/skills 或文档化工作流 + 记忆更新 | ⏳ 待复验通过后 | |
 
-## 本轮子任务工作流（Spec 010 生产加固，v20.3.2）
+## 任务图（依赖）
 
-> 依据 verification-log 避免重做已闭环项（图生图 TLS/日志脱敏/模型缓存/PPT 开关/Agent E2E）。
+```
+T1 ──► T2 ──► T10（版本统一）
+T3（独立）          T9（独立，收尾）
+T4（前端静态）       T5（前端静态）
+T6 ──► T7（运维工具，并行）
+T8（前端静态）
+T10 ──► T11（独立审查）──► T12（报告）──► T13（沉淀）
+```
 
-| 子任务 | 状态 | 产出/证据 |
-|--------|------|----------|
-| C0 Spec 010 规范 | ✅ DONE | .specify/specs/010-production-hardening-ngx/spec.md |
-| C1 nginx 静态缓存头 + gzip | ✅ DONE | /assets immutable + gzip -62%；首页 no-cache；备份 .bak-2031 |
-| C2 高并发只读探针 | ✅ DONE | 100 并发 100% ok 无错误；服务端 3ms 无瓶颈；scripts/probe_concurrency.py |
-| C3 契约防坑审计 | ✅ DONE | 前端 Key 冗余 + 后端匿名开放兼容；无隐藏不一致 |
-| C4 文档同步 | 🔄 进行中 | verification-log + workflow_status + README |
+## 验证日志（命令 + 结果）
 
-## 已验证勿重做（避免重复优化，来自 verification-log）
-- 图生图 TLS（R2 SNI IP直连冲突）→ 已修复 v20.3.1 ✅
-- /v1/logs 脱敏、/v1/models 60s 缓存、MCP generate_image 真实透传 → 已闭环 ✅
-- PPT/视频开关检测（meta ppt_enabled/video_enabled）→ 已闭环 ✅
-- Agent 真实 LLM plan+run（glm-5.3-flash 4 节点 succeeded）→ 已闭环 ✅
-- frontend Tasks/GalleryAlbum flaky（clearAllMocks）→ 已根治 ✅
+- 2026-09-27 v21 后端：`pytest tests/test_version_consistency.py` → **3 passed 全绿**（经 sync_version 统一 21.0.0 后）；`test_account_pool.py + fsm + predict_exhaustion` 组合 **39 passed**（隔离债已在 v20.3.11 修复）；`test_sse_events_unit.py` 20 passed；`test_agent_routes.py` 11 passed
+- 2026-09-27 前端：`vitest run --pool=threads --testTimeout=20000` → **28 files / 296 tests 全绿**（含 DLQ i18n）；`landing npm run build` 23.6s 成功含 PwaInstallPrompt；`frontend npm run build` 33.4s 成功（index gzip 84.04kB < 150KB）
+- 2026-09-27 版本全链：`sync_version.py --check` → 全链一致 21.0.0（9 文件 + e2e 契约）；manifest JSON 校验合法
+- 2026-09-27 PWA 产物：`landing/dist/` 含 manifest.webmanifest + pwa-192/512 + apple-touch-icon + sitemap + robots + sw.js(v21.0.0 三策略保留)
+- 2026-09-27 测试 A：`pytest tests/test_version_consistency.py` 3 passed；`test_account_pool + 3` 39 passed
 
-## 本轮子任务工作流（v20.3.3 ~ v20.3.6 连续闭环）
+## 审查发现（Critic 独立）
 
-| 版本 | 子任务 | 状态 | 产出/证据 |
-|------|--------|------|----------|
-| v20.3.3 | F1 DAG 教学化 explain 后端接线 | ✅ | GET /v1/agent/dag/{id} 节点附加 explain（8 类节点 what/why/io） |
-| v20.3.3 | F2 假功能注释修正 | ✅ | video 恒 Mock / 公益开放无 Key 注释事实化 |
-| v20.3.4 | G1 门户 explain 前端消费 | ✅ | PortalAgent run 后 explain 可折叠展示 |
-| v20.3.4 | G2 图生图超时降级 | ✅ | busy 等待时长 + 15min 超时提示 |
-| v20.3.5 | H 系列 数据备份闭环 | ✅ | cron 每日 7 DB 热备 + 恢复演练 integrity=ok |
-| v20.3.6 | J1 管理台 explain 消费 | ✅ | DagGraph tooltip/DagTrace 教学化释义 |
-| v20.3.6 | J2 恢复演练自动化 | ✅ | scripts/restore_drill.py + cron 每周日 |
+- （待填）
 
-## 本轮子任务工作流（Spec 009 门户重构）
+## 阻塞项
 
-| 子任务 | Agent | 状态 | 产出 |
-|--------|-------|------|------|
-| D1 设计文档 | 主控 | ✅ DONE | .specify/specs/009-ai-tool-portal-ui/DESIGN.md |
-| D2 门户组件（Hero/工具卡/画廊/对话/生图/Agent/PPT/视频） | 主控 | ✅ DONE | components/{tools,gallery}/ + PortalXxx |
-| D3 App.vue 门户化（去管理后台/去运维链接/简化页脚） | 主控 | ✅ DONE | App.vue 重写 |
-| D4 i18n 门户字典 + SEO | 主控 | ✅ DONE | useI18n.js + index.html |
-| D5 真机 E2E（对话/生图/Agent/画廊/移动端） | 主控 | ✅ DONE | Playwright 证据（见下） |
-| D6 构建 + 部署生产 | 主控 | 🔄 进行中 | dist 重建 → git pull + restart |
-| D7 提交 push + Release v20.3.0 | 主控 | ⏳ 排队 | 主题 commit + gh release |
+- 前端 vitest：`frontend/node_modules` 缺失 → 前端改动用静态验证 + 语法检查替代，verification-log 标注"依赖装齐后跑 vitest"。（已解除：node_modules 实际存在，vitest 296/296 已实跑）
+- litestream R2 / Grafana Cloud / UptimeRobot = 外部资源 → 本期只文档化路径，真接需 L2 授权。
+- 前端 dist 重建需要 node_modules → 若缺失仅生成文件不 build，标注待构建。（已解除：双 dist 重建成功）
 
-## 铁律（本工作流强制）
+## 旧产物处理决策（T9，2026-09-27）
 
-1. 验证记录防重跑：docs/verification-log.md 持续追加；"验证过勿重跑"结论维护
-2. 真实性：每项验收附命令输出/证据，禁止"跑过=完成"
-3. 可回滚：所有改动主题 commit + push；不强行上重架构（单机成本现实）
-4. 节点验收：每子任务产出独立验收（单测/E2E/真实输出），主控汇总后统一 commit/release
+| 文件 | 内容 | 决策 |
+|---|---|---|
+| `_dep33.py` | 生产 SSH 运维脚本（含**明文凭证**：IP/root/密码） | ⚠️ **安全项**：未跟踪 git 但常驻根目录；建议移入 `.gitignore` + 轮换暴露凭证 + 移出工作区（运维工具可放 `scripts/ops/` 或本机私有目录）；不擅自删除（用户运维资产） |
+| `_srv_py.py` | 同上（第二版） | ⚠️ 同上 |
+| `frontend/_admin_explain.cjs` | Playwright 冒烟脚本（admin explain E2E） | ✅ 保留：E2E 资产，建议迁移 `scripts/e2e/`（非阻塞） |
+| `landing/dev-proxy.mjs` | 本地 dev 代理（vite → 生产 HTTPS 转发） | ✅ 保留：开发工具，建议注释说明用途（已有） |
 
-## Spec 009 真机 E2E 证据（2026-09-26）
+## 下一步
 
-| 验收项 | 方法 | 结果 |
-|--------|------|------|
-| 首页门户结构 | Playwright 1440 | 6 卡片 / 9 画廊图 / 0 admin / 0 slow+honor |
-| AI 对话真实 SSE | tryingopen deepseek-v4-flash | 回复真实文本（"我是运行在 Tryingopen 上的 AI 助手…"），0 error |
-| 文生图真实出图 | /v1/generate → R2 | 27s 出图，image_url 渲染成功 |
-| 图生图卡 | /v1/edit 上传 | 上传按钮 + 模型加载正常 |
-| Agent 真实规划 | /v1/agent/dag/plan | 4 节点 DAG（意象→创作→critic→润色） |
-| 移动端 | 375/768 Playwright | 无横向滚动，触控目标 77px（≥44） |
-| 管理收敛 | Playwright 断言 | adminLinks=0 slowLinks=0 |
-
-## 历史（Phase A 参考项目对标，2026-09-22，已归档）
---- 以下保留原历史 ---
+1. Phase 1: 写 T1/T2（版本门禁 + sync 脚本）
+2. Phase 2: T3 测试隔离
+3. Phase 3-4: T4/T5 前端代码落地
+4. Phase 5: T6/T7 运维工具
+5. Phase 7: T10 版本统一 → T11 审查 → T12 报告 → T13 沉淀

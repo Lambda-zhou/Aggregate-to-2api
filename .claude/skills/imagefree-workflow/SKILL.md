@@ -7,26 +7,27 @@ description: 听风AI imagefree_api 项目开发工作流指南。涉及本仓�
 
 ## 1. 项目概述
 
-**听风AI（imagefree_api）是一个生产级 AI 图像生成 API 网关**，将多家上游 AI 图像服务（imagefree.net、aifreeforever.com、minimaxh3.ai、nanobanana-pro.com）聚合为统一的 OpenAI 风格 `/v1/*` 接口。
+**听风AI（imagefree_api）是一个生产级 AI 图像生成 API 网关**，将多家上游 AI 图像服务（imagefree.net、aifreeforever.com、tryingopen.com 对话）聚合为统一的 OpenAI 风格 `/v1/*` 接口。nanobanana / fal.ai 已下线。
 
 核心能力：
 
-- **多提供商路由** — 按 `model` 参数自动路由到对应上游，自动降级/熔断
-- **号池自动化** — 自动注册 + 每日签到，管理 1000+ 账号
+- **多提供商路由** — 按 `model` 参数自动路由到对应上游，自动降级/熔断（MAB-EWMA）
+- **号池自动化** — 自动注册 + 每日签到，管理 1000+ 账号（生产 `IF_ACCOUNT_AUTO=0` 停用签到）
 - **代理池轮换** — 住宅代理 + 免费代理双源，每 IP 递增冷却 + 24h 每日限额重置
 - **高并发架构** — 有界优先级队列 + Worker 池（4-16 自适应）+ Turnstile token 预取，扛 270+ RPS
-- **零鉴权部署** — 开箱即用；Docker Compose 一键部署
+- **AI 工具门户 + 管理后台分离** — `/` 是 Vue3 门户（对话/生图/图生图/视频/PPT/Agent + 画廊）；`/admin` 是 React 站长后台（v20.3.0 门户重构）
+- **智能体 DAG 编排 / MCP / 桌面版 / PWA** — 详见 README v21 小节
 
 技术栈：Python 3.11+ / FastAPI / uvicorn / SQLite(aiosqlite) / httpx / pydantic-v2 / React 19 + Vite 6 + TS / Vue3 landing。
-当前版本 v7.7.3（改动前先核对 pyproject.toml 实际版本）。
+当前版本 v21.0.0（改动前先核对 pyproject.toml 实际版本，**版本全链一致性由 `tests/test_version_consistency.py` + `scripts/sync_version.py --check` 门禁**）。
 
-> **v7.7.4 鉴权契约**（必读）：
-> - 生图 `/v1/generate*`、聊天 `/v1/chat/*`、`/v1/messages`：**公益开放不限 Key**（`guard_generate_request`/`guard_chat_request` 已移除 `check_api_key`，仅 per-IP 限速防刷）。
+> **v7.7.4+ 鉴权契约**（必读）：
+> - 生图 `/v1/generate*`、聊天 `/v1/chat/*`、`/v1/messages`：**公益开放不限 Key**（仅 per-IP 限速防刷）。
 > - 管理面写操作（封禁/解封、DLQ 清空/重试、日志 WS、priority=0 队列）：**保留管理 Key 鉴权**（`IF_ADMIN_KEYS`，`check_admin_key`）。
-> - 号池停用（`IF_ACCOUNT_AUTO=0`，生产默认）时，`needs_account=True` 的提供商（nanobanana/minimaxh3）被 `provider_summary()`/`all_models_visible()` 隐藏（前端不可见、`/v1/models` 不返回，但适配器与 account_pool 能力保留，开号池即恢复）。
 > - 生产真实 IP：compose subnet `172.28.0.0/16` + Dockerfile `--proxy-headers --forwarded-allow-ips` + `.env` `IF_TRUSTED_PROXIES=172.28.0.1` 三者配合。
+> - 版本 bump：`python scripts/sync_version.py --set X.Y.Z`（9 文件 + e2e_v12 契约）→ frontend/landing `npm run build`（dist 重建，防 landing dist 旧版本号测试拦）→ `pytest tests/test_version_consistency.py -q` 全绿。
 
-线上演示：https://imagefree.tingfengai.art （腾讯云东京，公益开放）
+线上演示：https://imagefree.hwhcie.bond （Azure，公益开放）
 
 ## 2. 代码结构说明
 

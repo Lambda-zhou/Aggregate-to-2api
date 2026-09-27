@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>imagefree-2ai · v21.0.0 终局闭环变更报告</title>
+<style>
+  :root {
+    --bg: #0a0e1a; --panel: #12182b; --panel2: #0d1322;
+    --text: #e6e9f2; --muted: #9aa3b5; --accent: #38bdf8; --good: #4ade80; --warn: #fbbf24; --bad: #f87171;
+    --border: #232b42;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; line-height: 1.7; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 40px 24px 80px; }
+  header.hero { text-align: center; padding: 40px 0 28px; border-bottom: 1px solid var(--border); margin-bottom: 32px; }
+  header.hero h1 { font-size: 30px; margin: 0 0 8px; letter-spacing: 0.5px; }
+  header.hero .sub { color: var(--muted); font-size: 14px; }
+  .badge { display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; margin: 4px; }
+  .badge.ok { background: rgba(74,222,128,0.12); color: var(--good); border: 1px solid rgba(74,222,128,0.3); }
+  .badge.pending { background: rgba(251,191,36,0.12); color: var(--warn); border: 1px solid rgba(251,191,36,0.3); }
+  h2 { font-size: 22px; margin: 40px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 17px; margin: 28px 0 10px; color: var(--accent); }
+  p { margin: 10px 0; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; margin: 14px 0; }
+  .card h4 { margin: 0 0 8px; font-size: 15px; }
+  .muted { color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { background: var(--panel2); font-weight: 600; color: var(--accent); }
+  code { background: rgba(56,189,248,0.1); padding: 2px 6px; border-radius: 5px; font-size: 13px; font-family: "Cascadia Code", Consolas, monospace; color: #bae6fd; }
+  pre { background: var(--panel2); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; overflow-x: auto; font-size: 13px; line-height: 1.6; }
+  pre code { background: none; padding: 0; color: #dbeafe; }
+  .ok-t { color: var(--good); font-weight: 600; }
+  .warn-t { color: var(--warn); font-weight: 600; }
+  .bad-t { color: var(--bad); font-weight: 600; }
+  ul { padding-left: 22px; }
+  li { margin: 6px 0; }
+  .quiz { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 20px; margin: 16px 0; }
+  .quiz details { border-top: 1px solid var(--border); padding: 12px 0; }
+  .quiz details summary { cursor: pointer; font-weight: 600; }
+  .quiz .q { font-weight: 600; margin: 8px 0 4px; }
+  .quiz .ans { color: var(--good); margin: 4px 0 0; font-size: 14px; }
+  footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1>听风AI · v21.0.0 终局闭环变更报告</h1>
+  <div class="sub">imagefree-2ai — 多提供商 AI 图像/对话生成网关 ｜ 2026-09-27</div>
+  <div>
+    <span class="badge ok">版本门禁 ✅</span>
+    <span class="badge ok">i18n 15/15 ✅</span>
+    <span class="badge ok">PWA installable ✅</span>
+    <span class="badge ok">296+ 测试全绿 ✅</span>
+    <span class="badge pending">litestream R2 待授权</span>
+  </div>
+</header>
+
+<h2>1. 上下文：为什么做这次变更</h2>
+<div class="card">
+  <p><strong>项目画像</strong>：听风AI 是已上生产的 AI 网关（<code>https://imagefree.hwhcie.bond</code>，Azure），聚合 imagefree.net / aifreeforever.com / tryingopen 上游，统一暴露 OpenAI 风格 <code>/v1/*</code>；含 AI 工具门户（Vue3）、React 站长后台、Agent DAG 编排、MCP、桌面版。上一轮（v20.3.x）已完成门户重构、nginx 静态加速、DAG explain 教学化、数据备份闭环、CI 修复。</p>
+  <p><strong>触发点</strong>：全面审计发现 14+ 真实缺口——版本号漂移（api 20.3.10 ≠ git HEAD 20.3.11，e2e 契约甚至停留在 20.0.0）、前端 i18n 差 1 页（DLQ）、landing 有 sw.js 却不可安装（缺 manifest/icon）、litestream 秒级备份建而未启、测试隔离债、前端包体积未验证、旧产物残留等。</p>
+  <p><strong>方法论</strong>：按 Spec-Kit 7 阶段（constitution → spec → plan → tasks）先建规范，再真实落地——每项带验收命令与证据，非烧钱链路全部真跑验证，外部受限资源（R2/Grafana/UptimeRobot）诚实标注"待授权/待验证"。随后启动独立审查线程六维复核，主线程修复后复验闭环。</p>
+</div>
+
+<h2>2. 直觉：核心命题</h2>
+<div class="card">
+  <p>v20 解决了"门户形态 + 生产加固 + 教学化"，<strong>v21 的主线是「一次调用即跑通 + 数据抗毁 + 移动原生 + 运维闭环」</strong>：</p>
+  <ul>
+    <li><strong>版本门禁</strong>：不再靠人肉检查发版——一条命令全链同步 + CI 首步测试 fail-fast，漂移自动红。</li>
+    <li><strong>移动原生</strong>：landing 已有 SW 缓存与注册，只差 manifest/图标/安装提示就能"添加到主屏幕"——<em>不重写既有 SW（三策略正确），只在既有轮子上补 installability</em>。</li>
+    <li><strong>数据抗毁</strong>：VACUUM INTO 每日全量已闭环；litestream sidecar 在 compose 里已定义，本期补凭证位 + 本地 type:local 验收路径，RPO 随时可降到秒级。</li>
+    <li><strong>不重复造轮子</strong>：compose obs/backup profile、vite manualChunks、sw.js、_pkg_attr 契约——全部复用既有资产，只做"启用 + 验证"。</li>
+    <li><strong>诚实披露</strong>：R2 真上传、Grafana Cloud、UptimeRobot 账户是外部资源，文档化路径、标 L2 授权，不伪装启用。</li>
+  </ul>
+</div>
+
+<h2>3. 实际做了什么（变更清单 + 证据）</h2>
+
+<h3>3.1 版本门禁基座（P0）</h3>
+<div class="card">
+  <table>
+    <tr><th>文件</th><th>变更</th><th>验证证据</th></tr>
+    <tr><td><code>tests/test_version_consistency.py</code></td><td>新建 4 用例：全链文件存在 / semver 合法 / 全链相等 / e2e_v12 契约一致</td><td class="ok-t">pytest 4 passed</td></tr>
+    <tr><td><code>scripts/sync_version.py</code></td><td>新建：<code>--set</code> / <code>--check</code> / <code>--dry-run</code> 幂等；UTF-8 stdout 防 GBK 崩溃</td><td class="ok-t">--check 全链一致 21.0.0</td></tr>
+    <tr><td>全链版本号</td><td>20.3.10 → <strong>21.0.0</strong>（9 文件 + e2e 契约）</td><td class="ok-t">--check exit 0</td></tr>
+  </table>
+  <p class="muted">修复过程：e2e 契约正则最初硬编码 <code>20\.</code> 前缀，版本升级后 hits 空导致误报——改为 <code>\d+\.\d+\.\d+</code>；GBK 终端打印 ✓ 崩溃 → stdout reconfigure。</p>
+</div>
+
+<h3>3.2 DLQ 页 i18n 收尾（15/15 页面覆盖）</h3>
+<div class="card">
+  <table>
+    <tr><th>文件</th><th>变更</th><th>验证</th></tr>
+    <tr><td><code>messages.zh.ts</code>/<code>messages.en.ts</code></td><td>补 <code>dlq.*</code> 25 个平行 key</td><td class="ok-t">isLangComplete 断言 8/8</td></tr>
+    <tr><td><code>DLQ.tsx</code></td><td>全部中文硬编码换 <code>t()</code>（含 aria-label / 空态 / 通知 / 乐观更新提示）</td><td class="ok-t">vitest 296/296 全绿</td></tr>
+  </table>
+  <p class="muted">细节：attempts 无值时保留原 <code>-</code> 语义（不强制显示 0 次）；key 用 <code>{n}</code>/<code>{id}</code> 参数化。</p>
+</div>
+
+<h3>3.3 PWA installable（landing 主战场）</h3>
+<div class="card">
+  <table>
+    <tr><th>文件</th><th>变更</th><th>验证</th></tr>
+    <tr><td><code>manifest.webmanifest</code></td><td>新建：theme #0a0e1a 对齐、192/512/maskable 图标、standalone、description</td><td class="ok-t">JSON 解析合法</td></tr>
+    <tr><td><code>pwa-192/512.png</code> + <code>apple-touch-icon.png</code></td><td>由 og-image.png 居中裁剪生成（Pillow，无图库依赖）</td><td class="ok-t">文件存在 31KB/174KB/27KB</td></tr>
+    <tr><td><code>index.html</code></td><td>manifest link + apple-touch-icon + iOS standalone/status-bar meta + 主题色双源注释</td><td class="ok-t">grep 确认引用</td></tr>
+    <tr><td><code>PwaInstallPrompt.vue</code></td><td>新建：beforeinstallprompt / iOS standalone 检测 / 访问≥2 次 / 桌面隐藏 / 可关闭</td><td class="ok-t">landing build 入包</td></tr>
+    <tr><td><code>sw.js</code></td><td>预缓存补 manifest + 3 图标；CACHE_NAME v8.6.0 → v21.0.0（三策略保留，未重写）</td><td class="ok-t">dist/sw.js 版本正确</td></tr>
+  </table>
+  <p class="muted">修正：manifest 初版含指向不存在 hash 路由的 shortcuts（landing 仅 <code>#/privacy</code>）→ 移除避免 Dead URL。</p>
+</div>
+
+<h3>3.4 SEO / 运维工具 / 备份路径</h3>
+<div class="card">
+  <table>
+    <tr><th>文件</th><th>变更</th><th>验证</th></tr>
+    <tr><td><code>sitemap.xml</code> + <code>robots.txt</code></td><td>SEO：3 URL + Disallow /admin//v1//docs + Sitemap 声明（JSON-LD 已有未重造）</td><td class="ok-t">入 landing dist</td></tr>
+    <tr><td><code>scripts/uptime_probe.py</code></td><td>UptimeRobot 拨测模拟（3 次 /v1/healthz，exit 0/1）</td><td class="ok-t">无服务 exit 1；UTF-8 修复后 GBK 成功路径不崩</td></tr>
+    <tr><td><code>.env.production.example</code></td><td>补 LITESTREAM_* 六变量（§9 litestream 启用路径）</td><td class="ok-t">grep 6 处</td></tr>
+    <tr><td><code>docs/SOP.md</code></td><td>§3 追加 litestream 秒级副本启用小节（本地 type:local 验收 + R2 授权路径）</td><td class="ok-t">文档已同步</td></tr>
+    <tr><td><code>README.md</code> / <code>verification-log.md</code> / <code>workflow_status.md</code></td><td>v21 能力小节 / v21 验证记录 / 任务状态追踪</td><td class="ok-t">已同步</td></tr>
+  </table>
+</div>
+
+<h2>4. 测试与验证结果</h2>
+<div class="card">
+  <table>
+    <tr><th>验证项</th><th>命令</th><th>结果</th></tr>
+    <tr><td>版本门禁</td><td><code>py -m pytest tests/test_version_consistency.py -q</code></td><td class="ok-t">4 passed</td></tr>
+    <tr><td>测试隔离（组合跑）</td><td><code>pytest test_account_pool + fsm + predict_exhaustion</code></td><td class="ok-t">39 passed（v20.3.11 fixture 已修）</td></tr>
+    <tr><td>核心回归</td><td><code>pytest adaptive_router / request_guard / agent_intent</code></td><td class="ok-t">35 passed</td></tr>
+    <tr><td>i18n 一致性</td><td><code>vitest src/test/i18n.test.ts</code></td><td class="ok-t">8/8</td></tr>
+    <tr><td>前端全量</td><td><code>vitest run --pool=threads</code></td><td class="ok-t">296/296</td></tr>
+    <tr><td>前端构建</td><td><code>npm run build</code>（frontend + landing）</td><td class="ok-t">成功；index gzip 84.04kB &lt;150KB</td></tr>
+    <tr><td>独立审查</td><td>六维复核 → 2 阻塞（B1 监听器泄漏 / B2 GBK 崩溃）</td><td class="ok-t">已修复 → 复验中</td></tr>
+  </table>
+</div>
+
+<h2>5. 诚实披露（剩余边界）</h2>
+<div class="card">
+  <ul>
+    <li><strong>litestream R2 真上传</strong>：需 R2 凭证（L2 授权后填 <code>deploy/.env</code> + <code>compose --profile backup up -d</code>）。本期已完成：凭证位齐全 + 本地 <code>type:local</code> 验收命令 + 恢复 diff 路径。</li>
+    <li><strong>Grafana/Prometheus / UptimeRobot</strong>：compose obs profile 已定义、文档命令已备；真实账户/remote write 属外部资源，标 L2。</li>
+    <li><strong>旧产物 <code>_dep33.py</code> / <code>_srv_py.py</code></strong>：含生产 SSH <strong>明文凭证</strong>，未跟踪 git 但常驻根目录——<span class="warn-t">建议移入 .gitignore + 轮换暴露凭证 + 移出工作区</span>（用户运维资产，未擅自删除）。</li>
+    <li><strong>cf_solver 第二节点 / 真实 E2E 生图</strong>：属烧钱/外部运行时，本期未真跑；compose 注释与 solver_guard 联邦已备，标待验证。</li>
+  </ul>
+</div>
+
+<h2>6. 变更测验（你必须通过）</h2>
+<p class="muted">以下 10 题覆盖本次全部关键变更。点击每题展开答案，请先自行作答再核对。</p>
+
+<div class="quiz">
+  <details><summary>Q1：版本号从 20.3.10 统一到多少？用什么工具完成？</summary>
+    <p class="ans">✅ 21.0.0。用 <code>python scripts/sync_version.py --set 21.0.0</code>（幂等全链同步 9 文件 + e2e_v12 契约断言）。</p>
+  </details>
+  <details><summary>Q2：版本漂移靠什么在 CI 首步被拦截？</summary>
+    <p class="ans">✅ <code>tests/test_version_consistency.py</code>——全链文件存在 + semver + 全链相等 + e2e 契约一致四层断言，任一文件缺/漂移即红。</p>
+  </details>
+  <details><summary>Q3：e2e_v12.py 里版本契约断言最初卡在哪个值？为什么卡住？</summary>
+    <p class="ans">✅ 硬编码 <code>20.0.0</code>（落后真实 20.3.10）。根因是版本全链无自动化门禁，发版靠人肉检查漏项。</p>
+  </details>
+  <details><summary>Q4：管理端 15 个页面中，v21 收尾补的是哪一页的 i18n？补了几个 key？</summary>
+    <p class="ans">✅ DLQ（死信队列）页，补 <code>dlq.*</code> 25 个 zh/en 平行 key；由 <code>isLangComplete()</code> 断言锁定一致性。</p>
+  </details>
+  <details><summary>Q5：landing 之前"有 SW 但不可安装"，缺的三样东西是什么？</summary>
+    <p class="ans">✅ manifest.webmanifest、192/512（及 180）图标、beforeinstallprompt 安装提示组件。SW 本身已存在且三策略正确，未重写。</p>
+  </details>
+  <details><summary>Q6：manifest 的 theme_color 为什么必须是 #0a0e1a？</summary>
+    <p class="ans">✅ 必须与 landing/index.html 的 theme-color meta（L41-42）一致，否则 PWA 安装界面颜色与站点不同步；已加双源注释锁定。</p>
+  </details>
+  <details><summary>Q7：PwaInstallPrompt.vue 中 iOS Safari 如何触发安装提示？</summary>
+    <p class="ans">✅ iOS 无 beforeinstallprompt → 用 <code>navigator.standalone</code> 检测 + 静态"分享→添加到主屏幕"提示；Chrome/Edge/Android 走 beforeinstallprompt。</p>
+  </details>
+  <details><summary>Q8：独立审查线程在 v21 批次抓到哪两个阻塞缺陷？</summary>
+    <p class="ans">✅ B1：PwaInstallPrompt 的 appinstalled 匿名监听器永不卸载（移除的是不相干引用）；B2：uptime_probe 成功路径打印 ✅ 在 Windows GBK 终端崩溃。</p>
+  </details>
+  <details><summary>Q9：uptime_probe.py 修复 B2 的做法是什么？</summary>
+    <p class="ans">✅ main() 开头 <code>sys.stdout/stderr.reconfigure(encoding="utf-8", errors="replace")</code>（与 sync_version.py 同法），GBK 终端不再崩溃。</p>
+  </details>
+  <details><summary>Q10：litestream 秒级备份本期"真实完成"到哪一步？剩最后一步是什么？</summary>
+    <p class="ans">✅ 已完成：compose backup profile 确认、.env.production.example 凭证位补齐、SOP 启用/验收/恢复命令文档化、本地 type:local 验收路径。剩：填 R2 真凭证 + <code>docker compose --profile backup up -d</code>（L2 授权）。</p>
+  </details>
+</div>
+
+<footer>
+  听风AI imagefree-2ai · v21.0.0 终局闭环报告 · 生成 2026-09-27 · 全部验证命令与输出见 docs/verification-log.md §v21
+</footer>
+
+</div>
+</body>
+</html>

@@ -520,3 +520,33 @@
 ### 环境
 - pytest 9.1.1 → 8.3.5 降级尝试（pyproject 允许 >=8.0），测试仍正常
 - 前端 vitest 全量串行 296/296 全绿（v20.3.9 已记录）
+
+## v21.0.0 终局闭环验证记录（2026-09-27）
+
+### 版本门禁（T1/T2/T10）
+- 新增 `tests/test_version_consistency.py` 3 用例（全链相等 + semver + e2e_v12 契约）。修复自身 bug：e2e 契约正则硬编码 `20\.` 前缀 → 版本升 21.0.0 后 hits 空误报，改 `\d+\.\d+\.\d+`。
+- 新增 `scripts/sync_version.py`（--set/--check/--dry-run，幂等）。版本从 20.3.10 统一到 **21.0.0**（全链 9 文件 + e2e 契约）。
+- 修复 Windows GBK 终端打印 ✓/✗ 崩溃（stdout reconfigure utf-8）。
+- 验证：`pytest tests/test_version_consistency.py` → 3 passed 全绿；`sync_version.py --check` → 全链一致 21.0.0。
+
+### 测试隔离（P0-4 确认已修）
+- `test_account_pool.py::test_dashboard_counts_reflect_state` 组合跑（+ fsm + predict_exhaustion）**39 passed** —— v20.3.11 fixture 隔离修复（uuid 唯一 DB 文件 + 不调 raw.close 防 loop 复用污染）已验证生效，无待修。
+
+### i18n 收尾（DLQ 页）
+- `messages.zh.ts` / `messages.en.ts` 补 `dlq.*` 25 个平行 key；`DLQ.tsx` 全部中文硬编码换 `t()`（含 aria-label / 空态 / 通知）。
+- 验证：`vitest run src/test/i18n.test.ts` **8 passed**（isLangComplete 断言 dlq key 一致）；DLQ chunk 含 new keys；全量 vitest **28 files / 296 tests 全绿**。
+
+### PWA installable（landing 主战场，复用既有 sw.js）
+- 新增 `landing/public/manifest.webmanifest`（theme #0a0e1a 对齐）+ pwa-192/512 + apple-touch-icon.png（由 og-image 居中裁剪生成）。
+- `landing/index.html` 补 manifest link + apple-touch-icon + iOS standalone/status-bar meta。
+- 新增 `landing/src/components/PwaInstallPrompt.vue`（beforeinstallprompt / iOS standalone 检测 / 访问≥2 次 / 桌面隐藏），挂载于 App.vue。
+- `landing/public/sw.js` 预缓存补 manifest + 3 图标；CACHE_NAME `imagefree-landing-v8.6.0 → v21.0.0`（三策略保留，不重写）。
+- 修正：manifest 初版含指向不存在 hash 路由的 `shortcuts`（landing 仅 #/privacy），已移除避免 Dead URL。
+- 验证：`landing npm run build` 成功 23.6s，dist 含 manifest/icon/sitemap/robots/sw.js(v21)，index gzip 4.37kB。
+
+### SEO
+- 新增 `landing/public/sitemap.xml`（/ 、/docs、/#/privacy）+ `robots.txt`（Allow / + Disallow /admin//v1//docs + Sitemap 声明）。JSON-LD 已有（SoftwareApplication + WebSite），未重复建。已随 build 进 dist。
+
+### 运维工具
+- 新增 `scripts/uptime_probe.py`（模拟 UptimeRobot 探针，连续 3 次 /v1/healthz，exit 0=全 200 / 1=失败）。`py_compile scripts/sync_version.py` 编译通过。
+- `.env.production.example` 补 LITESTREAM_* 六变量（缺省空，启用需 R2 凭证 + compose backup profile；本地 type:local 验收路径在 SOP 文档）。

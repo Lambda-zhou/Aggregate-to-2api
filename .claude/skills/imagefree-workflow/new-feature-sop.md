@@ -41,7 +41,7 @@
 ### 6. 文档 + CI + 发版
 - `README.md` 端点表加行；`docs/SOP.md` 排查表加症状；`deploy/.env.example` 加新 `IF_*`。
 - `ci.yml` 若新增 py 依赖或 lint 规则，同步 `ruff check api/ tests/ scripts/`。
-- 版本 bump 全 8 处；`verification-log` 追加；tag push 触发 Deploy；生产 E2E。
+- 版本 bump（v21 起）：`python scripts/sync_version.py --set X.Y.Z`（全链 9 文件 + e2e 契约）→ frontend/landing `npm run build`（dist 重建防 landing dist 旧版本号测试拦）→ `pytest tests/test_version_consistency.py -q` 全绿；`verification-log` 追加；tag push 触发 Deploy；生产 E2E。
 
 ## 验收清单（每次必过）
 

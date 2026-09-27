@@ -105,6 +105,16 @@ systemctl start imagefree-api
 - 前置：提供 R2/S3 凭证后，用 litestream 或 rclone 把 backups/ 推送到异地对象存储（RPO 秒级）
 - 凭证就绪前保持本地 cron 每日备份（RPO=24h 兜底）
 
+**litestream 秒级异地副本启用（v21.0.0，RPO 24h→秒级）**：
+- compose sidecar 已定义（`deploy/docker-compose.yml` L228-255 `litestream` 服务，`--profile backup`），配置完整 `deploy/litestream.yml`（imagefree/account_pool/email_registry 三库，sync-interval=1s，retention=72h），凭证经环境变量注入（勿硬编码）
+- 启用三步：
+  1. `deploy/.env` 填 `LITESTREAM_ACCESS_KEY_ID` / `LITESTREAM_SECRET_ACCESS_KEY` / `LITESTREAM_S3_BUCKET`（R2 的 S3 兼容凭证；模板见 `deploy/.env.production.example` §9）
+  2. `cd deploy && docker compose --profile backup up -d`
+  3. 验证：`docker logs imagefree-litestream 2>&1 | grep -i "replicating"`；`litestream generations -config deploy/litestream.yml`
+- 本地验收（无外网凭证也可验证机制）：临时 `deploy/litestream.local.yml`（`type: local` 副本）→ `litestream replicate -config deploy/litestream.local.yml` → `litestream restore -config deploy/litestream.local.yml -o restore-test/` diff 行数一致 → 验收后删除临时文件
+- 恢复演练：`scripts/restore_drill.py --from-litestream`（v21 扩展，用副本还原到临时目录 diff）
+- 恢复操作序：见 `deploy/docs/litestream-restore.md`
+
 ---
 
 ## 4. 功能开关（systemd 环境变量）
