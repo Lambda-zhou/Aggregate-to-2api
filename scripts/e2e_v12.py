@@ -3,7 +3,7 @@
 一体化探针：启动 mock cf_solver + uvicorn → wait_port → 真实 HTTP 断言 → 清理进程。
 覆盖端点：
 1. GET  /healthz                       基础健康
-2. GET  /openapi.json                  openapi version == 20.0.0（版本全链）
+2. GET  /openapi.json                  openapi version == 22.0.0（版本全链，sync_version.py 同步）
 3. GET  /v1/agent/skills               技能清单含 ecommerce/ppt 新场景
 4. GET  /v1/agent/skills/{name}        单技能详情（v12.0.0 新增）
 5. POST /v1/mcp initialize             MCP 握手（v12.0.0 新增）

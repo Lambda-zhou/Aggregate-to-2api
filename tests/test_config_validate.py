@@ -174,13 +174,19 @@ class TestEnvExampleSync:
 
     @staticmethod
     def _config_consumed() -> set[str]:
+        """扫描整个 api/ 目录收集 IF_* 消费点（不限于 config 包）。
+
+        email_sources/prompts/vector 等独立模块直接 os.getenv 读 IF_*，
+        仅扫 config 包会把合法消费误报为孤儿（v22 修正）。"""
         import glob
 
-        import api.config as cfg
+        import api as _api
 
-        pkg = Path(cfg.__file__).parent
+        pkg = Path(_api.__file__).parent
         aliases: set[str] = set()
-        for fp in glob.glob(str(pkg / "*.py")):
+        for fp in glob.glob(str(pkg / "**" / "*.py"), recursive=True):
+            if "__pycache__" in fp:
+                continue
             src = Path(fp).read_text(encoding="utf-8")
             aliases |= set(re.findall(r'validation_alias\s*=\s*"(IF_[A-Z0-9_]+)"', src))
             aliases |= set(re.findall(r'os\.getenv\("(IF_[A-Z0-9_]+)"', src))

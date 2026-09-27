@@ -313,15 +313,13 @@ async def test_connection_limit_counts_active_only():
 
 @pytest.mark.asyncio
 async def test_generator_limit_error_yields_429():
-    """上限触发 → task_events_generator 产出 429 error 事件后终止（不挂起）。"""
-    from api import sse_events as se
-
+    """上限触发 → task_events_generator 产出 429 error 事件后终止（真端到端，勿退化）。"""
     hub._subscribers.clear()
     hub.set_max_connections(1)
-    await hub.subscribe("limit-gen")
-    req = se.FakeRequest(headers={}, disconnect_after=99) if hasattr(se, "FakeRequest") else None
-    if req is None:
-        # 未暴露 FakeRequest 时退化：直接验证 subscribe 抛错（旧行为不变）
-        with pytest.raises(ConnectionError):
-            await hub.subscribe("limit-gen-2")
+    await hub.subscribe("limit-gen")  # 占满唯一名额
+    # 用测试本地 FakeRequest（保持连接）驱动 generator——验证 429 分支真实产出（H1 修复，勿 se.FakeRequest）
+    req = FakeRequest(headers={}, disconnect_after=99)
+    chunks = [c async for c in task_events_generator("limit-gen-2", req)]
+    joined = "".join(chunks)
+    assert '"code": 429' in joined and "event: error" in joined
     hub.set_max_connections(0)
