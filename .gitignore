@@ -139,3 +139,6 @@ desktop/*.zip
 # 根级临时运维脚本（含生产凭证，禁止提交）
 /_dep33.py
 /_srv_py.py
+
+# scripts/ops/ 全部忽略（含生产 SSH 明文凭证的运维脚本，v22 P0-4 移至此处集中管理）
+scripts/ops/

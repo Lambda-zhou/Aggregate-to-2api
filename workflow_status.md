@@ -56,7 +56,7 @@ T10 ──► T11（独立审查）──► T12（报告）──► T13（沉�
 |---|---|---|
 | `_dep33.py` | 生产 SSH 运维脚本（含**明文凭证**：IP/root/密码） | ⚠️ **安全项**：未跟踪 git 但常驻根目录；建议移入 `.gitignore` + 轮换暴露凭证 + 移出工作区（运维工具可放 `scripts/ops/` 或本机私有目录）；不擅自删除（用户运维资产） |
 | `_srv_py.py` | 同上（第二版） | ⚠️ 同上 |
-| `frontend/_admin_explain.cjs` | Playwright 冒烟脚本（admin explain E2E） | ✅ 保留：E2E 资产，建议迁移 `scripts/e2e/`（非阻塞） |
+| `scripts/e2e/_admin_explain.cjs` | Playwright 冒烟脚本（admin explain E2E，v22 P0-4 已从 frontend/ 迁移） | ✅ 已迁移 scripts/e2e/ |
 | `landing/dev-proxy.mjs` | 本地 dev 代理（vite → 生产 HTTPS 转发） | ✅ 保留：开发工具，建议注释说明用途（已有） |
 
 ## 下一步

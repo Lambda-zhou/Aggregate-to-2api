@@ -146,3 +146,26 @@ systemctl start imagefree-api
 
 已闭环项记录在 `docs/verification-log.md` + workflow_status「已验证勿重做」——
 新任务先查该清单，避免重复跑同一测试/优化。
+
+## 观察栈与 solver 双节点启用（v22 P0-2/P0-3，Docker 环境）
+
+### 观察栈（Grafana + Prometheus，compose obs profile）
+```bash
+cd /opt/imagefree-api/deploy && docker compose --profile obs up -d prometheus grafana
+# 验证：prometheus 抓取 api 指标成功
+curl -s "http://localhost:9090/api/v1/query" --data-urlencode 'query=up{job="imagefree-api"}' | grep -o '"value".*' | head -1
+# 浏览器 http://<host>:3000（admin/admin 或 .env GRAFANA_ADMIN_*）→ imagefree-overview + slo-budget 面板应有数据
+# 真实指标名前缀 imagefree_*（勿臆造 http_request_duration_seconds）
+```
+
+### cf_solver 第二节点（真瓶颈缓解，compose 多节点）
+```bash
+# deploy/docker-compose.yml 已注释两种扩展（L19-34）：
+# (a) Swarm replicas: 取消注释 deploy.replicas: 3（需 docker swarm init）
+# (b) 单机副本: 复制 cfsolver service 块为 cfsolver2 + container_name 改 imagefree-cfsolver2
+# 再改 api 环境段：
+#   IF_CF_SOLVER_URLS=http://cfsolver:8001,http://cfsolver2:8001
+# solver_guard 已支持多节点加权最少在途调度 + 熔断 failover（无需改 api/ 源码）
+# 加权：IF_SOLVER_NODE_WEIGHTS 按需配置
+# 验收：python scripts/probe_concurrency.py --solver-threads 20（对比单/双节点均时）
+```
