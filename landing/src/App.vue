@@ -18,6 +18,7 @@ import PortalVideo from './components/PortalVideo.vue'
 import PortalPpt from './components/PortalPpt.vue'
 import PortalAgent from './components/PortalAgent.vue'
 import Privacy from './components/Privacy.vue'
+import PwaInstallPrompt from './components/PwaInstallPrompt.vue'
 
 const Hero3D = defineAsyncComponent(() => import('./components/Hero3D.vue'))
 
@@ -44,6 +45,9 @@ function goHome() { window.location.hash = '' }
       <Hero3D v-if="!small || !reduced" />
     </div>
     <div class="aura" aria-hidden="true"></div>
+
+    <!-- PWA 成场安装提示（v21，移动端粗指针设备） -->
+    <PwaInstallPrompt />
 
     <!-- 顶部品牌导航（无管理后台入口） -->
     <header class="nav" :class="{ scrolled: navScrolled }">

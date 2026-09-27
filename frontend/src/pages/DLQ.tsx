@@ -5,9 +5,11 @@ import { Skeleton as SkeletonStructured } from '../components/Skeleton';
 import { EmptyState } from '../components/EmptyState';
 import { useOptimisticMutation } from '../hooks/useOptimisticMutation';
 import { useApi } from '../hooks/useApi';
+import { useT } from '../i18n';
 import type { DLQItem } from '../api';
 
 export function DLQPage() {
+  const t = useT();
   const { data, loading, error, reload } = useApi(() => fetchDLQ(), { intervalMs: 0 });
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [clearing, setClearing] = useState(false);
@@ -20,12 +22,12 @@ export function DLQPage() {
     mutate: (taskId) => retryDLQTask(taskId),
     onOptimistic: (list, taskId) => list.filter(i => i.task_id !== taskId),
     onSuccess: (_res, taskId) => {
-      notify(`重试任务 ${taskId.slice(0, 8)} 已触发`, 'success');
+      notify(t('dlq.retryTriggered', { id: taskId.slice(0, 8) }), 'success');
       setRetryingId(null);
       reload();
     },
     onError: (err, _taskId) => {
-      notify('重试失败: ' + (err instanceof Error ? err.message : String(err)), 'error');
+      notify(`${t('dlq.retryFailed')}: ${err instanceof Error ? err.message : String(err)}`, 'error');
       setRetryingId(null);
     },
   });
@@ -38,13 +40,13 @@ export function DLQPage() {
 
   const handleClear = async () => {
     if (clearing) return;
-    if (!confirm('确定清空死信队列？此操作不可恢复。')) return;
+    if (!confirm(t('dlq.clearConfirm'))) return;
     setClearing(true);
     try {
       await clearDLQ();
-      notify('死信队列已成功清空', 'success');
+      notify(t('dlq.clearOk'), 'success');
     } catch (e) {
-      notify('清空失败: ' + (e instanceof Error ? e.message : String(e)), 'error');
+      notify(`${t('dlq.clearFailed')}: ${e instanceof Error ? e.message : String(e)}`, 'error');
     }
     setClearing(false);
     reload();
@@ -54,7 +56,7 @@ export function DLQPage() {
     return (
       <div className="dlq-container">
         <div className="page-header">
-          <h1 className="page-title">死信队列 (DLQ)</h1>
+          <h1 className="page-title">{t('dlq.title')}</h1>
         </div>
         <ErrorRetry message={error.message} onRetry={reload} />
       </div>
@@ -69,18 +71,18 @@ export function DLQPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">
-            死信队列 (DLQ)
-            {items.length > 0 && <span className="title-badge">{items.length} 个异常堆积</span>}
+            {t('dlq.title')}
+            {items.length > 0 && <span className="title-badge">{t('dlq.badge', { n: items.length })}</span>}
           </h1>
-          <p className="page-desc">由于重试耗尽、上游提供商严重封禁或参数错误而中止的任务隔离与恢复区</p>
+          <p className="page-desc">{t('dlq.desc')}</p>
         </div>
         <div className="dlq-actions">
-          <button onClick={reload} disabled={loading} className="tf-btn tf-btn-secondary" aria-label="刷新死信队列">
-            <span>🔄</span> 刷新
+          <button onClick={reload} disabled={loading} className="tf-btn tf-btn-secondary" aria-label={t('dlq.ariaRefresh')}>
+            <span>🔄</span> {t('dlq.refresh')}
           </button>
           {items.length > 0 && (
-            <button onClick={handleClear} disabled={clearing} className="tf-btn tf-btn-danger" aria-label="清空所有死信任务">
-              {clearing ? '清空中...' : '🗑️ 清空所有死信'}
+            <button onClick={handleClear} disabled={clearing} className="tf-btn tf-btn-danger" aria-label={t('dlq.ariaClear')}>
+              {clearing ? t('dlq.clearing') : t('dlq.clearAll')}
             </button>
           )}
         </div>
@@ -99,11 +101,11 @@ export function DLQPage() {
             <table className="tf-table">
               <thead>
                 <tr>
-                  <th>任务 ID</th>
-                  <th>目标模型</th>
-                  <th style={{ minWidth: 320 }}>错误原因详情</th>
-                  <th>已重试次数</th>
-                  <th style={{ textAlign: 'right' }}>操作</th>
+                  <th>{t('dlq.colTaskId')}</th>
+                  <th>{t('dlq.colModel')}</th>
+                  <th style={{ minWidth: 320 }}>{t('dlq.colError')}</th>
+                  <th>{t('dlq.colAttempts')}</th>
+                  <th style={{ textAlign: 'right' }}>{t('dlq.colAction')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -125,16 +127,18 @@ export function DLQPage() {
                         </div>
                       </td>
                       <td>
-                        <span className="dlq-attempts-badge">{item.attempts ?? '-'} 次</span>
+                        <span className="dlq-attempts-badge">
+                          {item.attempts != null ? t('dlq.attempts', { n: item.attempts }) : '-'}
+                        </span>
                       </td>
                       <td style={{ textAlign: 'right' }}>
                         <button
                           onClick={() => handleRetry(item)}
                           disabled={busy || retryingId !== null || clearing}
                           className="tf-btn tf-btn-primary tf-btn-sm"
-                          aria-label={`重新入队任务 ${item.task_id?.slice(0, 8)}`}
+                          aria-label={t('dlq.ariaRetry', { id: item.task_id?.slice(0, 8) ?? '' })}
                         >
-                          {busy ? '重试中...' : '⚡ 重新入队'}
+                          {busy ? t('dlq.retrying') : t('dlq.retry')}
                         </button>
                       </td>
                     </tr>
@@ -153,9 +157,9 @@ export function DLQPage() {
         {!loading && !items.length && !error && (
           <EmptyState
             icon="📭"
-            text="死信队列为空"
-            hint="集群运行健康，所有重试耗尽的任务会自动捕获并隔离于此"
-            ctaLabel="刷新检查"
+            text={t('dlq.empty')}
+            hint={t('dlq.emptyHint')}
+            ctaLabel={t('dlq.refreshCheck')}
             onCta={reload}
           />
         )}

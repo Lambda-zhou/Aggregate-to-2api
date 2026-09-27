@@ -13,12 +13,17 @@
  */
 
 // 版本号 —— 升版时改这里，activate 自动清旧缓存
-const CACHE_NAME = 'imagefree-landing-v8.6.0'
+const CACHE_NAME = 'imagefree-landing-v21.0.0'
 
 // 预缓存清单（仅放确定性高、体积小的关键资源；three 大 chunk 不预缓存，靠运行时 Cache-First 懒填充）
 const PRECACHE_URLS = [
   '/',
-  '/og-image.png'
+  '/og-image.png',
+  // v21 PWA installable：manifest + 图标进预缓存，确保安装为应用后离线打开不破相
+  '/manifest.webmanifest',
+  '/pwa-192.png',
+  '/pwa-512.png',
+  '/apple-touch-icon.png'
 ]
 
 // ──────────────────────────────────────────────────────────────

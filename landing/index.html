@@ -5,6 +5,14 @@
     <link rel="icon" href="data:," />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
+    <!-- PWA installable（v21）：manifest 使 Chrome/Edge/Android 可添加到主屏幕 -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="听风AI" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
     <!-- 核心描述（150 字内，含关键词）-->
     <meta name="description" content="听风AI — 一站式 AI 创意平台：在线 AI 对话、文生图、图生图、AI 视频、AI PPT 与智能体编排，灵感画廊每日更新，免登录免费使用。" />
 
@@ -37,7 +45,7 @@
     <meta name="twitter:description" content="一站式 AI 创意平台：AI 对话、文生图、图生图、AI 视频、AI PPT、AI 智能体编排。" />
     <meta name="twitter:image" content="https://imagefree.tingfengai.art/og-image.png" />
 
-    <!-- 主题色 + 暗色声明 -->
+    <!-- 主题色 + 暗色声明。⚠ 注意：#0a0e1a 与 public/manifest.webmanifest 的 theme_color/background_color 必须同步（H2 双源锁定），改主题色两处一起改 -->
     <meta name="theme-color" content="#0a0e1a" media="(prefers-color-scheme: dark)" />
     <meta name="theme-color" content="#0a0e1a" />
     <meta name="color-scheme" content="dark" />
