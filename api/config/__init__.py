@@ -164,6 +164,8 @@ class Settings(BaseSettings):
     # 避免与主任务库争锁；cleanup 并入 bg_tasks 现有周期循环（IF_DB_CLEANUP_INTERVAL）
     if_dag_store_backend: str = Field("sqlite", validation_alias="IF_DAG_STORE_BACKEND")
     if_dag_store_db: str = Field("data/dag_runs.db", validation_alias="IF_DAG_STORE_DB")
+    # v22 P2-1：SSE 全局活动订阅连接上限（0=不限制）。lifespan 装配到 sse_events.hub。
+    if_sse_max_connections: int = Field(0, validation_alias="IF_SSE_MAX_CONNECTIONS")
     if_dag_retention_days: int = Field(7, validation_alias="IF_DAG_RETENTION_DAYS")
     # v13 P0-7: DAG 续跑端点（POST /v1/agent/dag/{run_id}/resume）开关，缺省关（0）。
     # 幂等续跑（已 succeeded 节点不重跑，仅重跑 failed/skipped/pending/running）；

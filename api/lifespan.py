@@ -81,6 +81,16 @@ async def lifespan(_app):
         from .request_guard import set_storage_adapter as _set_storage
 
         _set_storage(None)
+    # v22 P2-1：SSE 全局活动订阅连接上限装配（IF_SSE_MAX_CONNECTIONS，0=不限制）
+    try:
+        sse_max = int(getattr(config, "IF_SSE_MAX_CONNECTIONS", 0) or 0)
+        if sse_max > 0:
+            from .sse_events import hub as _sse_hub
+
+            _sse_hub.set_max_connections(sse_max)
+            log.info("P2-1: SSE 活动连接上限装配 = %d", sse_max)
+    except Exception as e:
+        log.warning("P2-1: SSE 连接上限装配失败（可忽略，0=不限制）: %s", e)
     # v8.1 P1-A3：记忆巩固后台 worker 启动（IF_MEMORY_CONSOLIDATION_ENABLED=1 时）
     try:
         from .agent.memory import MEMORY_CONSOLIDATION_ENABLED, memory_store

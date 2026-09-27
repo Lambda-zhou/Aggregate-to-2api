@@ -56,16 +56,25 @@ class StoredEvent:
 class TaskEventHub:
     """按任务的事件总线：每个 task_id 一个事件缓冲 + 一套订阅队列。"""
 
-    def __init__(self) -> None:
+    def __init__(self, max_connections: int = 0) -> None:
         self._subscribers: dict[str, list[asyncio.Queue]] = {}
         # 缓冲条目的内部递增 id（全局单调，断线重连回放用）
         self._seq = 0
         self._buffers: dict[str, list[StoredEvent]] = {}
         self._lock = asyncio.Lock()
+        # v22 P2-1：全局 SSE 活动订阅上限（0=不限制，向后兼容）。
+        # 由 lifespan 按 IF_SSE_MAX_CONNECTIONS 装配（api.config -> hub.set_max_connections）。
+        self._max_connections: int = max_connections
+
+    def set_max_connections(self, n: int) -> None:
+        """装配连接上限（0=不限制）。由 lifespan 启动时从 config 注入。"""
+        self._max_connections = max(0, int(n))
 
     async def subscribe(self, task_id: str) -> asyncio.Queue:
         q: asyncio.Queue = asyncio.Queue(maxsize=MAX_QUEUE)
         async with self._lock:
+            if self._max_connections > 0 and self.active_subscription_count() >= self._max_connections:
+                raise ConnectionError("SSE 活动连接数已达上限")
             self._subscribers.setdefault(task_id, []).append(q)
         return q
 
@@ -182,7 +191,12 @@ async def task_events_generator(task_id: str, request) -> Any:
     for ev in await hub.replay_after(task_id, last_id):
         yield _sse_encode(ev.event, ev.data, ev.id)
 
-    queue = await hub.subscribe(task_id)
+    try:
+        queue = await hub.subscribe(task_id)
+    except ConnectionError:
+        # v22 P2-1：达到全局连接上限 → 产出 429 事件后终止（不静默挂起）
+        yield _sse_encode("error", {"code": 429, "detail": "SSE 连接数已达上限，请稍后重试"}, -1)
+        return
     try:
         # 初始连接确认
         yield _sse_encode("ping", {"msg": "connected", "task_id": task_id}, -1)

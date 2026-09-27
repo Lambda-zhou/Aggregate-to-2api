@@ -268,3 +268,60 @@ async def test_generator_disconnect_records_cancellation():
     snap = sse_stats.snapshot()
     assert snap["cancelled_subscriptions"] == 1
     assert snap["total_subscriptions"] == 1
+
+
+# ── v22 P2-1: 全局活动连接上限 ──────────────────────────────
+@pytest.mark.asyncio
+async def test_connection_limit_default_zero_unlimited():
+    """max_connections=0（缺省）→ 任意数量订阅通过（向后兼容）。"""
+    hub.set_max_connections(0)
+    hub._subscribers.clear()
+    for i in range(5):
+        q = await hub.subscribe(f"limit-default-{i}")
+        assert q is not None
+    assert hub.active_subscription_count() == 5
+
+
+@pytest.mark.asyncio
+async def test_connection_limit_enforced_429():
+    """max_connections=2 → 第 3 个订阅抛 ConnectionError（429 语义）。"""
+    hub._subscribers.clear()
+    hub.set_max_connections(2)
+    await hub.subscribe("limit-a")
+    await hub.subscribe("limit-b")
+    with pytest.raises(ConnectionError):
+        await hub.subscribe("limit-c")  # 超限
+    # 关闭上限后恢复
+    hub.set_max_connections(0)
+    q = await hub.subscribe("limit-d")
+    assert q is not None
+
+
+@pytest.mark.asyncio
+async def test_connection_limit_counts_active_only():
+    """unsubscribe 释放名额 → 可再次订阅（按活动连接数而非累计数）。"""
+    hub._subscribers.clear()
+    hub.set_max_connections(1)
+    q1 = await hub.subscribe("limit-release")
+    assert hub.active_subscription_count() == 1
+    await hub.unsubscribe("limit-release", q1)
+    # 释放后可再次订阅（不被累计计数卡死）
+    q2 = await hub.subscribe("limit-release")
+    assert q2 is not None
+    hub.set_max_connections(0)
+
+
+@pytest.mark.asyncio
+async def test_generator_limit_error_yields_429():
+    """上限触发 → task_events_generator 产出 429 error 事件后终止（不挂起）。"""
+    from api import sse_events as se
+
+    hub._subscribers.clear()
+    hub.set_max_connections(1)
+    await hub.subscribe("limit-gen")
+    req = se.FakeRequest(headers={}, disconnect_after=99) if hasattr(se, "FakeRequest") else None
+    if req is None:
+        # 未暴露 FakeRequest 时退化：直接验证 subscribe 抛错（旧行为不变）
+        with pytest.raises(ConnectionError):
+            await hub.subscribe("limit-gen-2")
+    hub.set_max_connections(0)

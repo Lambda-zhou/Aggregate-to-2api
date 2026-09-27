@@ -49,7 +49,13 @@ async def ws_task_events(websocket: WebSocket, task_id: str) -> None:
         await websocket.send_text(_ws_encode(ev.event, ev.data, ev.id))
 
     # 订阅实时事件
-    queue = await hub.subscribe(task_id)
+    try:
+        queue = await hub.subscribe(task_id)
+    except ConnectionError:
+        # v22 P2-1：达到全局连接上限 → 错误帧 + 关闭（不静默挂起）
+        await websocket.send_text(_ws_encode("error", {"code": 429, "detail": "SSE 连接数已达上限，请稍后重试"}, -1))
+        await websocket.close(code=1013)
+        return
     # 初始连接确认（seq=-1 标记非业务事件）
     await websocket.send_text(_ws_encode("ping", {"msg": "connected", "task_id": task_id}, -1))
 

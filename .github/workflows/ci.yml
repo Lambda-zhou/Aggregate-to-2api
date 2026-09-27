@@ -38,6 +38,12 @@ jobs:
           pip install --no-cache-dir -r requirements.txt
           pip install pytest pytest-asyncio pytest-cov httpx pytest-timeout pytest-benchmark
 
+      - name: 版本一致性门禁（漂移 fail-fast）
+        # v22 P1-2：全链版本漂移（api/pyproject/frontend/landing/desktop/compose/README/e2e 契约）在单测前拦截，
+        # 避免发版后才发现版本不一致。fail-fast：版本漂移立即红，不继续跑全量。
+        run: |
+          python -m pytest tests/test_version_consistency.py -q -p no:cacheprovider --tb=short --no-header
+
       - name: 单元测试（排除集成/混沌；slow=真实网络也不跑）
         # P0-11 根治：.gitignore `config/` 误伤 api/config/presets.py（已改 /config/ + 提交）。
         # v8.2.1 发现 tee 的 pytest stdout 在 Actions 上被截断（grep/tail 段不可见），

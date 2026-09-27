@@ -53,8 +53,9 @@ def _free_port() -> int:
 
 @pytest.fixture()
 def local_server():
-    """起随机端口探针端点，yield base_url，teardown 关闭。"""
+    """起随机端口探针端点，yield base_url，teardown 关闭。每次重置 handler status=200（防类属性跨测试污染）。"""
     port = _free_port()
+    _Handler.status = 200  # 重置（Handler.status 是类属性，防 local_server_503 污染后续测试）
     server = http.server.HTTPServer(("127.0.0.1", port), _Handler)
     t = threading.Thread(target=server.serve_forever, daemon=True)
     t.start()
