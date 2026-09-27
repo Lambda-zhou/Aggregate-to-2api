@@ -6,7 +6,7 @@
   <a href="#"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
   <a href="#"><img src="https://img.shields.io/badge/python-3.11+-brightgreen.svg" alt="Python"></a>
   <a href="#"><img src="https://img.shields.io/badge/docker-compose-orange.svg" alt="Docker"></a>
-  <a href="#"><img src="https://img.shields.io/badge/version-20.3.10-brightgreen.svg" alt="Version"></a>
+  <a href="#"><img src="https://img.shields.io/badge/version-21.0.0-brightgreen.svg" alt="Version"></a>
 </p>
 
 ---
@@ -35,6 +35,11 @@
 - **⏱️ 任务进度/取消/重试 (v16.1)** — SSE/轮询阶段徽章（queued→solving→generating→done + progress 5/30/80/100）+ `POST /v1/tasks/{id}/cancel` 幂等取消（`IF_TASK_CANCEL_ENABLED`，mark_finished 防覆盖护栏 + worker 双检查点）+ `POST /v1/tasks/{id}/retry` 一键重试；前端 Tasks/Generate 进度条 + 取消/重试按钮。
 - **🌐 i18n 双语 (v16.1)** — 零依赖轻量 i18n（`t()`/`useT()`，en/zh 91 key 一致性测试锁定）+ Layout/Generate/Tasks/Gallery/Dashboard/ApiGuide 主路径接线 + 顶栏语言切换；landing 复用既有 zh/en 平行字典。
 - **🗄️ 数据治理 (v16.1)** — 任务软归档（`IF_TASK_RETENTION_DAYS=90` 到期终态→archived，列表退冷/详情可查）+ `POST /v1/admin/export/tasks` 批量导出（CSV BOM 中文表头/json 完整字段/管理 Key/审计/10 万行截断）+ 成本预警（`IF_COST_ALERT_PCT=80` webhook 幂等）+ `GET /v1/admin/health-report` 七维健康自诊断（JSON/MD，前端导出）。
+- **🌐 i18n 全页面覆盖 (v21.0.0)** — DLQ 页补 `dlq.*` 25 平行 key，管理端 15/15 页面双语全覆盖（`isLangComplete()` 断言锁定）。
+- **📱 PWA 成场安装 (v21.0.0)** — landing 补 `manifest.webmanifest` + 192/512/180 图标 + iOS standalone meta + `PwaInstallPrompt.vue` 安装提示（beforeinstallprompt/iOS 双路径）；复用既有 sw.js 三策略（预缓存补 manifest/图标，CACHE_NAME v21.0.0）。
+- **🔐 版本门禁 (v21.0.0)** — `scripts/sync_version.py` 一键全链同步（--set/--check/--dry-run，覆盖 9 文件 + e2e 契约断言）+ `tests/test_version_consistency.py` 一致性门禁，CI 首步防版本漂移。
+- **🗄️ litestream 秒级备份路径 (v21.0.0)** — compose `--profile backup` sidecar 已就绪（三库 1s 同步），`deploy/.env.production.example` 凭证位齐全，本地 `type: local` 验收命令 + 恢复演练扩展，R2 凭证就绪后一键启用（RPO 24h→秒级）。
+- **🌍 SEO (v21.0.0)** — landing 补 `sitemap.xml` + `robots.txt`（Disallow /admin//v1//docs，Sitemap 声明）；JSON-LD 结构化数据已有（SoftwareApplication + WebSite）。
 
 > 📌 **线上演示**：https://imagefree.hwhcie.bond（Azure，公益开放 · 一站式 AI 创意平台）
 

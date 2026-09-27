@@ -135,3 +135,7 @@ frontend/test-results/
 
 # 桌面已打包产物（用户机器构建，不入库）
 desktop/*.zip
+
+# 根级临时运维脚本（含生产凭证，禁止提交）
+/_dep33.py
+/_srv_py.py
