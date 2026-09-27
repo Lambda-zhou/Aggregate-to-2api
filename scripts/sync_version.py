@@ -15,11 +15,13 @@
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+# ROOT 可被 SYNC_VERSION_ROOT 环境变量覆盖（单测注入 tmp 树隔离）；默认仓库根，向后兼容
+ROOT = Path(os.environ.get("SYNC_VERSION_ROOT") or Path(__file__).resolve().parents[1])
 SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
 
 # (相对路径, 匹配模式, 替换函数)
