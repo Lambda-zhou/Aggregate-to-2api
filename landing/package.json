@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run --environment jsdom --pool=threads"
   },
   "dependencies": {
     "@tresjs/core": "^5.8.3",
@@ -17,6 +18,9 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.2.4",
-    "vite": "^6.4.3"
+    "@vue/test-utils": "^2.5.1",
+    "jsdom": "^29.1.1",
+    "vite": "^6.4.3",
+    "vitest": "^4.1.11"
   }
 }
