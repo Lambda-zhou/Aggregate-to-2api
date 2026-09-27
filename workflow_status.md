@@ -66,3 +66,16 @@ T10 ──► T11（独立审查）──► T12（报告）──► T13（沉�
 3. Phase 3-4: T4/T5 前端代码落地
 4. Phase 5: T6/T7 运维工具
 5. Phase 7: T10 版本统一 → T11 审查 → T12 报告 → T13 沉淀
+
+## v22.0.1 终局审计修复（2026-09-27 晚）
+
+| 项 | 状态 | 证据 |
+|---|---|---|
+| config 双向校验盲区修复 | ✅ | `_config_consumed` 扩展至整个 api/；config_validate 20 passed |
+| env 模板 8 变量补齐 | ✅ | .env.example + production 双向一致 |
+| H1 伪测试修复 | ✅ | generator 429 真端到端（本地 FakeRequest + event: error 断言） |
+| e2e_v12 注释同步 | ✅ | 20.0.0 → 22.0.0 |
+| 提交推送 | ✅ | fee09cc → main + tag v22.0.1 |
+| Release | ✅ | 397806294 |
+| 终局 HTML 报告 | ✅ | docs/v22-terminal-report.html |
+| 独立复验线程 | 🔄 | a422e6832824eab8d 运行中 |
