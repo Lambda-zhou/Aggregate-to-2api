@@ -79,3 +79,11 @@ T10 ──► T11（独立审查）──► T12（报告）──► T13（沉�
 | Release | ✅ | 397806294 |
 | 终局 HTML 报告 | ✅ | docs/v22-terminal-report.html |
 | 独立复验线程 | 🔄 | a422e6832824eab8d 运行中 |
+
+## v22.1.1 移动端/引用核对批（2026-09-28 委派中）
+
+| 子任务 | 角色 | 内容 | 状态 |
+|---|---|---|---|
+| A / P1-1 | explorer | 测试文件引用核对 + 失效修复 | 🔄 ac95b71b00119ff68 |
+| B / P1-4 | worker | 375 视口移动端 Playwright 冒烟（真实 chromium） | 🔄 a4a0e03455c34859d |
+| C / P1-3 | 决策 | PwaInstallPrompt 组件测试：landing 无 vitest → 由 B 的移动端冒烟覆盖 UI 行为，不引 Vue 测试栈 | ✅ 已决策 |

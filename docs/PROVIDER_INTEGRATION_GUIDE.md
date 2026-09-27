@@ -218,7 +218,7 @@ def bootstrap() -> None:
 2. 在 `tests/test_providers_contract.py` 加 fixture（真实响应样例）+ 有效/破坏用例。
 
 其他建议测试：
-- `tests/test_providers_health.py`：健康检查状态机。
+- `tests/test_provider_degrade.py` / `tests/test_provider_fallback_degraded.py`：提供商健康/降级状态机（实际落地文件；旧指南建议的 `test_providers_health.py` 未采用）。
 - `tests/test_adaptive_router.py`：降级路由 select_best（多候选/单候选/无备用）。
 - 集成测试：`IF_MOCK_UPSTREAM=1` 跑 generate 全链路（不真实调上游）。
 
@@ -324,6 +324,6 @@ class NanobananaProvider(Provider):
 - [ ] 在 `registry.bootstrap()` 注册（可选提供商加 `IF_XXX_ENABLED` 开关 + try/except 降级）。
 - [ ] 在 `api/contracts.py` 加该提供商响应契约 + `tests/test_providers_contract.py` 加 fixture。
 - [ ] 在 `api/config/__init__.py` 加 `IF_XXX_*` 配置项 + `deploy/.env.example` 注释。
-- [ ] 跑 `pytest tests/test_providers_contract.py tests/test_providers_health.py tests/test_adaptive_router.py` 全绿。
+- [ ] 跑 `pytest tests/test_providers_contract.py tests/test_provider_degrade.py tests/test_provider_fallback_degraded.py tests/test_adaptive_router.py` 全绿。
 - [ ] `IF_MOCK_UPSTREAM=1` 跑集成测试（不真实调上游）。
 - [ ] 更新本文档「参考实现对比」章节。
