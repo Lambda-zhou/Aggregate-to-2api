@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import sys
 import time
+from urllib.error import HTTPError
 from urllib.request import urlopen
 
 
@@ -24,8 +25,11 @@ def probe(base_url: str, timeout: float) -> tuple[int, float]:
         with urlopen(url, timeout=timeout) as resp:
             latency = (time.monotonic() - start) * 1000
             return resp.status, latency
+    except HTTPError as e:
+        # HTTP 错误（503/429/500…）——保留真实状态码，与"网络错误"区分
+        return e.code, (time.monotonic() - start) * 1000
     except OSError:
-        # URLError/HTTPError/连接超时均落此（URLError 是 OSError 子类）
+        # 连接失败/超时/DNS —— 统一 -1
         return -1, (time.monotonic() - start) * 1000
 
 
