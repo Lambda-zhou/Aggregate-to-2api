@@ -550,3 +550,33 @@
 ### 运维工具
 - 新增 `scripts/uptime_probe.py`（模拟 UptimeRobot 探针，连续 3 次 /v1/healthz，exit 0=全 200 / 1=失败）。`py_compile scripts/sync_version.py` 编译通过。
 - `.env.production.example` 补 LITESTREAM_* 六变量（缺省空，启用需 R2 凭证 + compose backup profile；本地 type:local 验收路径在 SOP 文档）。
+
+## v22.0.0 终局闭环验证记录（2026-09-27）
+
+### 发布状态
+- v21.0.0 已发布：5 commits 推送 main（926a9bd→bd39473）+ tag v21.0.0 + GitHub Release 397768628。
+- v22.0.0 为本轮增量：版本全链 21.0.0 → 22.0.0（sync_version.py），frontend/landing dist 重建，sw.js CACHE_NAME v22.0.0。
+
+### SSE 活动连接保护（P2-1）
+- `api/sse_events.py`：TaskEventHub 加 `max_connections` 构造参数 + `set_max_connections()` + subscribe 超限抛 ConnectionError（0=不限制向后兼容）；task_events_generator 捕获产出 429 error 事件后终止。
+- `api/ws_events.py`：subscribe 捕获 ConnectionError → 发 429 错误帧 + close(1013)。
+- `api/lifespan.py`：startup 装配 `IF_SSE_MAX_CONNECTIONS` 到 hub（0 不装配，缺省零行为变化）。
+- `api/config/__init__.py`：新增 `if_sse_max_connections` 字段（IF_SSE_MAX_CONNECTIONS）；`deploy/.env.example` 同步。
+- 测试：`tests/test_sse_events_unit.py` 新增 3 用例（缺省不限/上限触发/unsubscribe 释放）。**验证：25 passed + 1 skip**。
+
+### CI 版本门禁接入（P1-2/G15）
+- `.github/workflows/ci.yml` 单测 job 首步新增「版本一致性门禁（漂移 fail-fast）」：`pytest tests/test_version_consistency.py`，版本漂移立即红不过全量。
+- YAML 语法校验通过（8 steps）。
+
+### 运维脚本单测（P1-3）
+- `tests/test_sync_version.py` 6 用例：check 一致/缺失文件 fail/set 幂等/dry-run 不落盘/e2e 契约改写/GBK 输出不崩。**修复脚本 ROOT 可被 `SYNC_VERSION_ROOT` 覆盖（单测隔离，旧行为不变）**。
+- `tests/test_uptime_probe.py` 6 用例：probe 200/503/不可达/CLI all-200 exit0/503 exit1/GBK 成功不崩。**修复 `_Handler.status` 类属性跨测试污染（fixture 重置）**。
+
+### 指南更新
+- `计划书/下一步改进指南.md` 升级 v22.0.0：v21 闭环清单 + v22 差距矩阵 G1-G15 + P0-P2 + 批次 + TDD + 验收矩阵；修正 v21 发布状态（已发布）。
+
+### 验证汇总
+- `pytest` 相关 7 文件：44 passed + 1 skip 全绿
+- `py_compile` api/sse_events/ws_events/lifespan/config + scripts 编译通过
+- frontend build index gzip 84.04kB（<150KB 达标）；landing build 成功 sw v22.0.0
+- 版本门禁 `pytest tests/test_version_consistency.py`：4 passed（全链 22.0.0 一致）
