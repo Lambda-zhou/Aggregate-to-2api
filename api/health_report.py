@@ -91,7 +91,7 @@ async def _collect_email_pool() -> dict[str, Any]:
         return {"error": str(e)}
 
 
-_EMAIL_POOL_IMPORT_TIMEOUT = 8.0  # 秒；邮箱源模块级构建限时（E2E 契约健康面 5s 整体目标内含此段）
+_EMAIL_POOL_IMPORT_TIMEOUT = 8.0  # 秒；邮箱源模块级构建限时（实测：email_pool 超时 8s + 其余维度 <5s，整体落在 E2E 契约 <20s 窗口内，安全）
 
 
 def _import_email_pool():

@@ -25,7 +25,9 @@ from .sse_events import heartbeat_interval, hub
 
 log = logging.getLogger("ws_events")
 
-_WS_HEARTBEAT_INTERVAL = heartbeat_interval()  # 与 SSE 一致（动态读当前值，装配后可调）
+# 与 SSE 一致：导入时快照（lifespan 装配 IF_SSE_HEARTBEAT_INTERVAL 先于 ws_events 首次懒导入，
+# 故快照值与装配值一致；若需运行中跟随动态值应改函数读而非快照）
+_WS_HEARTBEAT_INTERVAL = heartbeat_interval()
 
 
 def _ws_encode(event: str, data: dict, seq: int) -> str:
