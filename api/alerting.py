@@ -13,6 +13,23 @@ from . import config
 
 log = logging.getLogger("imagefree_api.alerting")
 
+
+def _safe_webhook_url(url: str) -> str:
+    """webhook URL 脱敏：只留 host + path（剥 query，尤其 key= 签名参数）。
+
+    v23 S-1：企微/钉钉/Slack webhook 的 query 尾部即令牌，完整 URL 进日志会在匿名
+    公开的 /v1/logs、/v1/logs/ws 实时泄露。解析失败返回 "<webhook>" 兜底。
+    """
+    if not url:
+        return "<webhook>"
+    try:
+        from urllib.parse import urlsplit
+
+        p = urlsplit(url)
+        return f"{p.scheme or 'https'}://{p.netloc or '?'}{p.path or ''}"
+    except Exception:  # noqa: BLE001
+        return "<webhook>"
+
 # webhook 外发：无连接池依赖，每次触发即时 POST（3s 超时，失败仅记日志不影响主流程）。
 # 用 asyncio.Lock 串行化，避免并发触发导致 webhook 请求堆积。
 _webhook_lock = asyncio.Lock()
@@ -217,7 +234,9 @@ async def _send_webhook(entries: list[dict[str, Any]], url: str) -> None:
         if resp.status_code >= 400:
             log.warning("告警 webhook 返回非 2xx: %s", resp.status_code)
         else:
-            log.info("告警 webhook 已外发至 %s（%d 条）", url, len(entries))
+            # v23 S-1：企微/钉钉/Slack webhook URL 尾部即签名/令牌，全 URL 进日志会在
+            # /v1/logs、/v1/logs/ws（匿名公开）实时泄露——只记脱敏 host:path。
+            log.info("告警 webhook 已外发至 %s（%d 条）", _safe_webhook_url(url), len(entries))
     except Exception as e:  # noqa: BLE001
         log.warning("告警 webhook 外发失败: %s", e)
 

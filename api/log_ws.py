@@ -59,12 +59,18 @@ def broadcast_log(record: logging.LogRecord) -> None:
     从 logging.Handler.emit 调用（非异步上下文），需要将异步广播任务
     调度到事件循环中执行。如果当前没有事件循环正在运行，跳过（避免
     在非异步线程中静默失败）。
+
+    v23 S-1（安全审计）：/v1/logs/ws 匿名公开，message 必须复用 log_buffer._redact
+    统一脱敏——v20.3.1 只修了内存缓冲通道，本通道此前直接把原始 message 广播，
+    redis_url（含密码）与告警 webhook URL（含签名 token）会实时泄露给任意 WS 客户端。
     """
+    from .log_buffer import _redact  # noqa: PLC0415  # 统一脱敏模式（短模式优先已内置）
+
     entry = {
         "timestamp": getattr(record, "asctime", ""),
         "level": record.levelname,
         "logger": record.name,
-        "message": record.getMessage(),
+        "message": _redact(record.getMessage()),
     }
     try:
         loop = asyncio.get_event_loop()

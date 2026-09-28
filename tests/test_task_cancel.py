@@ -85,7 +85,7 @@ async def _create(tmp_db: DB, task_id: str = "task-1", status: str = "pending") 
 @pytest.mark.asyncio
 async def test_cancel_pending_to_cancelled(tmp_db, eng):
     await _create(tmp_db, "t-cancel-pending")
-    resp = await cancel_task("t-cancel-pending")
+    resp = await cancel_task(_make_request(), "t-cancel-pending")
     assert resp == {"task_id": "t-cancel-pending", "status": "cancelled", "cancelled": True}
     row = await tmp_db.get("t-cancel-pending")
     assert row["status"] == "cancelled"
@@ -95,7 +95,7 @@ async def test_cancel_pending_to_cancelled(tmp_db, eng):
 @pytest.mark.asyncio
 async def test_cancel_processing_to_cancelled(tmp_db, eng):
     await _create(tmp_db, "t-cancel-proc", status="processing")
-    resp = await cancel_task("t-cancel-proc")
+    resp = await cancel_task(_make_request(), "t-cancel-proc")
     assert resp["status"] == "cancelled"
     assert resp["cancelled"] is True
     assert (await tmp_db.get("t-cancel-proc"))["status"] == "cancelled"
@@ -107,8 +107,8 @@ async def test_cancel_processing_to_cancelled(tmp_db, eng):
 @pytest.mark.asyncio
 async def test_cancel_idempotent_double(tmp_db, eng):
     await _create(tmp_db, "t-cancel-double")
-    first = await cancel_task("t-cancel-double")
-    second = await cancel_task("t-cancel-double")
+    first = await cancel_task(_make_request(), "t-cancel-double")
+    second = await cancel_task(_make_request(), "t-cancel-double")
     # 两次均 200（不抛 4xx/5xx）
     assert first["status"] == "cancelled" and first["cancelled"] is True
     assert second["status"] == "cancelled" and second["cancelled"] is False  # 幂等命中
@@ -125,7 +125,7 @@ async def test_cancel_idempotent_double(tmp_db, eng):
 @pytest.mark.asyncio
 async def test_cancel_completed_idempotent(tmp_db, eng):
     await _create(tmp_db, "t-cancel-done", status="completed")
-    resp = await cancel_task("t-cancel-done")
+    resp = await cancel_task(_make_request(), "t-cancel-done")
     assert resp["status"] == "completed"
     assert resp["cancelled"] is False
     row = await tmp_db.get("t-cancel-done")
@@ -136,7 +136,7 @@ async def test_cancel_completed_idempotent(tmp_db, eng):
 @pytest.mark.asyncio
 async def test_cancel_error_idempotent(tmp_db, eng):
     await _create(tmp_db, "t-cancel-err", status="error")
-    resp = await cancel_task("t-cancel-err")
+    resp = await cancel_task(_make_request(), "t-cancel-err")
     assert resp["status"] == "error"
     assert resp["cancelled"] is False
     assert (await tmp_db.get("t-cancel-err"))["status"] == "error"
@@ -148,7 +148,7 @@ async def test_cancel_error_idempotent(tmp_db, eng):
 @pytest.mark.asyncio
 async def test_cancel_not_found_404(tmp_db, eng):
     with pytest.raises(AppError) as ei:
-        await cancel_task("t-ghost")
+        await cancel_task(_make_request(), "t-ghost")
     assert ei.value.status_code == 404
 
 
@@ -157,7 +157,7 @@ async def test_cancel_disabled_403(tmp_db, eng, monkeypatch):
     monkeypatch.setattr("api.config.IF_TASK_CANCEL_ENABLED", False)
     await _create(tmp_db, "t-cancel-off")
     with pytest.raises(AppError) as ei:
-        await cancel_task("t-cancel-off")
+        await cancel_task(_make_request(), "t-cancel-off")
     assert ei.value.status_code == 403
     # 未动任务状态（开关关闭不产生副作用）
     assert (await tmp_db.get("t-cancel-off"))["status"] == "pending"
@@ -202,7 +202,7 @@ async def test_worker_process_abandons_cancelled_task(tmp_db, eng):
     """已 cancelled 任务不被 worker 认领：_process 返回 'cancelled'，不 mark_started、
     不进 token 获取，DB 终态保持 cancelled（不落不一致）。"""
     await _create(tmp_db, "t-abandon", status="pending")
-    await cancel_task("t-abandon")  # 模拟 cancel 端点先落终态
+    await cancel_task(_make_request(), "t-abandon")  # 模拟 cancel 端点先落终态
     outcome = await eng._process("t-abandon")
     assert outcome == "cancelled"
     row = await tmp_db.get("t-abandon")
@@ -231,7 +231,7 @@ async def test_progress_event_queued_stage(tmp_db, eng):
 async def test_cancel_publishes_terminal_event(tmp_db, eng):
     """取消终态 pub：per-task result 事件带 status_detail=cancelled / progress=100。"""
     await _create(tmp_db, "t-cancel-ev")
-    await cancel_task("t-cancel-ev")
+    await cancel_task(_make_request(), "t-cancel-ev")
     await asyncio.sleep(0.05)  # broadcast 内部 publish 异步落地
     events = hub.get_task_events("t-cancel-ev")
     result_ev = [e for e in events if e["event"] == "result"]

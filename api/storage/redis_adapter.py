@@ -11,6 +11,26 @@ from .base import DistributedLock, RateLimiter, StorageAdapter
 
 log = logging.getLogger("storage.redis")
 
+
+def _safe_redis_host(url: str) -> str:
+    """从 redis URL 提取 host:port（剥除 userinfo 密码），供日志脱敏。
+
+    v23 S-1：redis://:password@host:port 的完整 URL 含明文密码，任何写日志的调用
+    （/v1/logs、/v1/logs/ws、磁盘日志）都会把它广播。解析失败时返回 "<redis>"，
+    绝不回落到含密码的原始 URL。
+    """
+    if not url:
+        return "<redis>"
+    try:
+        from urllib.parse import urlparse
+
+        p = urlparse(url)
+        host = p.hostname or "127.0.0.1"
+        port = p.port or 6379
+        return f"{host}:{port}"
+    except Exception:  # noqa: BLE001
+        return "<redis>"
+
 # 滑动窗口限流 Lua 脚本（原子性）：清理窗口外记录，添加当前时间戳，判断总量
 _SLIDING_WINDOW_LUA = """
 local key = KEYS[1]
@@ -148,7 +168,9 @@ class RedisStorageAdapter(StorageAdapter):
             await self._client.ping()
             self._lock = RedisLock(self._client)
             self._rate_limiter = RedisRateLimiter(self._client)
-            log.info("Redis 存储驱动已成功连接: %s", self._redis_url)
+            # v23 S-1：「/v1/logs」与「/v1/logs/ws」匿名公开，日志若含完整 redis URL
+            # （redis://:密码@host）即实时泄露凭据——只记 host:port，不记 userinfo。
+            log.info("Redis 存储驱动已成功连接: %s", _safe_redis_host(self._redis_url))
         except Exception as e:
             log.error("Redis 存储驱动初始化失败: %s", e)
             raise

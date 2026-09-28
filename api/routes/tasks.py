@@ -50,18 +50,27 @@ async def get_task(task_id: str) -> TaskInfo:
 
 
 @router.post("/v1/tasks/{task_id}/cancel", include_in_schema=True, summary="取消任务（幂等）")
-async def cancel_task(task_id: str) -> dict[str, Any]:
+async def cancel_task(request: Request, task_id: str) -> dict[str, Any]:
     """取消任务（P0-4，幂等）。
 
     - pending/processing → 终态 cancelled（取消后 worker 感知放弃，见 engine._process 检查点）；
     - 已完成/失败/已取消 → 200 幂等返回当前状态，不报错、不产生状态不一致；
     - 任务不存在 → 404；开关 IF_TASK_CANCEL_ENABLED=0 → 403 禁用。
+    - v23 S-4（安全审计）：取消是**写操作**，此前零鉴权限流——攻击者枚举公开画廊/task_id
+      即可取消任意他人任务（依赖型 DoS）。现补 guard_chat_request per-IP 限流（与
+      retry/_prepare 同级；管理 Key 不强制，保持公益端可操作）。
+      【边界披露】guard 仅限流不把调用方 IP 落库到任务表（generate 路径经 request.state
+      落 client_ip，cancel 走独立引擎接口无此字段）——S-4 目标是防批量取消，per-IP 限流
+      已实现；若需审计 IP 需另加 cancel 调用日志字段，v23 未做（见 review-v23 P2-4）。
     """
     from .. import config as _cfg
     from ..meta import engine as _engine
+    from ..auth import guard_chat_request
 
     if not _cfg.IF_TASK_CANCEL_ENABLED:
         raise AppError(ErrorCodes.FORBIDDEN, "任务取消功能未启用（IF_TASK_CANCEL_ENABLED=0）", 403)
+    # 与 /v1/chat/completions 同款限流：per-IP 防御批量恶意取消（任务 id 需先枚举公开列表）
+    guard_chat_request(request)
     status, changed = await _engine.cancel_task(task_id)
     if status == "not_found":
         raise AppError(ErrorCodes.NOT_FOUND, "task 不存在", 404)

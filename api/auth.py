@@ -183,8 +183,11 @@ def check_chat_rate_limit(request: Request) -> None:
     limit = int(getattr(config.settings, "if_chat_rate_limit", 60) or 60)
     if limit <= 0:
         return
-    client = request.client
-    key = client.host if client else "unknown"
+    # v23 S-3（安全审计）：此前直接用 request.client.host（socket 对端）——反代部署下
+    # 全部用户共享反代 IP 单桶，可被单客户端耗尽全站额度；改用受信代理解析真实客户端 IP
+    # （与生图 request_guard.get_client_ip 同判定：对端在 IF_TRUSTED_PROXIES 内才取 XFF）。
+    client_ip = _client_ip_of(request)
+    key = client_ip or "unknown"
     now = time.monotonic()
     with _lock:
         bucket = _chat_buckets.setdefault(key, deque())
@@ -220,9 +223,9 @@ def check_dag_rate_limit(request: Request) -> None:
     limit = int(getattr(config.settings, "if_dag_requests_per_minute", 30) or 30)
     if limit <= 0:
         return
-    client = request.client
-    key = client.host if client else "unknown"
-    key = f"dag:{key}"
+    # v23 S-3：同 check_chat_rate_limit——反代部署下用受信代理解析真实客户端 IP，避免全站单桶。
+    client_ip = _client_ip_of(request)
+    key = f"dag:{client_ip or 'unknown'}"
     now = time.monotonic()
     with _lock:
         bucket = _chat_buckets.setdefault(key, deque())

@@ -22,6 +22,11 @@ _SENSITIVE_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\b(?:sk-[A-Za-z0-9_-]{8,}|tfai-[A-Za-z0-9_-]{6,})"), "***"),
     # URL query 中的敏感参数（弱通道 api_key 也脱敏）
     (re.compile(r"(?i)(\?[^\s#&]*\b(?:api_key|key|token|secret|password)=)[^&\s#]+"), r"\1***"),
+    # redis://:密码@host 连接串（v23 S-1：密码前无 password= 键，通用模式盖不住；
+    # 兼容空 userinfo「redis://:pass@」与「redis://user:pass@」两种写法。
+    # v23 P2-2（独立审查）：密码可含 @（如 user:pa@ss），用贪婪 [^\s]+ 匹配到**最后一个**
+    # @（URL host 不含 @，最后一个 @ 即 userinfo 结束），避免只脱到首个 @ 泄漏密码片段）
+    (re.compile(r"(?i)\bredis(?:sentinel)?://([^\s]+)@"), r"redis://***@"),
 ]
 
 
