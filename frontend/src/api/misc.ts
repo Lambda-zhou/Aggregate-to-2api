@@ -107,13 +107,16 @@ export async function downloadGalleryZip(
   return { blob: await res.blob(), total: Number.isFinite(total) ? total : taskIds.length, requested: taskIds.length };
 }
 
-/** v16 P0-3：画廊软删（status → deleted，可回滚）。 */
+/** v16 P0-3：画廊软删（status → deleted，可回滚）。
+ * v23 F1（契约审计）：后端 DELETE /v1/gallery/{id} 在 _gallery_auth 后调用
+ * check_admin_key(scope="gallery-delete")——必须携带管理 Key，否则配置 Key 的环境必 401/403。
+ * 合并 adminHeaders()（Bearer / X-API-Key），password 仅用于画廊读组鉴权。 */
 export async function softDeleteGalleryItem(taskId: string, password?: string): Promise<{ deleted: boolean; task_id: string; soft: boolean }> {
   const q = new URLSearchParams();
   if (password) q.set('password', password);
   return apiFetch<{ deleted: boolean; task_id: string; soft: boolean }>(
     `/v1/gallery/${encodeURIComponent(taskId)}?${q}`,
-    { method: 'DELETE' },
+    { method: 'DELETE', headers: adminHeaders() },
   );
 }
 

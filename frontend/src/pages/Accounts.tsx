@@ -154,7 +154,9 @@ export function AccountsPage() {
       <PoolPausedBanner poolPaused={poolPaused} onToggle={() => setPoolPaused(v => !v)} />
 
       {poolPaused ? null : entries.length === 0 ? (
-        <Empty text="号池暂未初始化" hint="开启 IF_ACCOUNT_AUTO=1 后将自动开始账号注册与巡检" />
+        // v23 N4 §5-D：号池随提供商下线停用（ACTIVE_PROVIDERS 空，IF_ACCOUNT_AUTO 不再生效），
+        // 空态提示改为诚实表述，避免诱导用户开启无效开关。
+        <Empty text="号池无活跃账号池" hint="nanobanana/falai 等提供商已下线，自动注册/签到已停用；历史账号数据保留可查" />
       ) : (
         <div className="pool-grid">
           {entries.map(([prefix, stats]) => (

@@ -5,6 +5,7 @@
 // 以验证 SSE 精确阶段徽章流转（solving/generating + progress）在真实浏览器路径下的渲染。
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, act, fireEvent } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { TasksPage } from '../pages/Tasks';
 import type { Task } from '../api';
 import { fetchTasks, fetchTask, cancelTask, retryTask, notify } from '../api';
@@ -87,7 +88,7 @@ describe('Tasks 页面 P0-4 进度可视化 + 取消/重试', () => {
   it('processing 行显示阶段徽章/进度条：轮询兜底「运行中」→ SSE 事件流转到 solving/generating', async () => {
     fetchTasks.mockResolvedValue(list([task('t1', 'processing')]));
     fetchTask.mockResolvedValue(task('t1', 'processing'));
-    render(<TasksPage />);
+    render(<MemoryRouter><TasksPage /></MemoryRouter>);
     await flush();
 
     // 轮询路径：status=processing 无精确子阶段 → 回退「运行中」徽章 + 不确定进度条（progressbar 无 valuenow）
@@ -118,7 +119,7 @@ describe('Tasks 页面 P0-4 进度可视化 + 取消/重试', () => {
     fetchTasks.mockResolvedValue(list([task('t1', 'processing')]));
     fetchTask.mockResolvedValue(task('t1', 'processing'));
     cancelTask.mockResolvedValue({ task_id: 't1', status: 'cancelled', cancelled: true });
-    render(<TasksPage />);
+    render(<MemoryRouter><TasksPage /></MemoryRouter>);
     await flush();
 
     fireEvent.click(screen.getByRole('button', { name: /取消/ }));
@@ -136,7 +137,7 @@ describe('Tasks 页面 P0-4 进度可视化 + 取消/重试', () => {
   it('error 行点「重试」→ 调 retryTask + toast 新任务已提交', async () => {
     fetchTasks.mockResolvedValue(list([task('t1', 'error')]));
     retryTask.mockResolvedValue({ task_id: 't2', source_task_id: 't1', status: 'queued' });
-    render(<TasksPage />);
+    render(<MemoryRouter><TasksPage /></MemoryRouter>);
     await flush();
 
     expect(screen.getByText('失败')).toBeInTheDocument();
@@ -151,7 +152,7 @@ describe('Tasks 页面 P0-4 进度可视化 + 取消/重试', () => {
     fetchTasks.mockResolvedValue(list([task('t1', 'processing')]));
     fetchTask.mockResolvedValue(task('t1', 'processing'));
     cancelTask.mockResolvedValue({ task_id: 't1', status: 'completed', cancelled: false });
-    render(<TasksPage />);
+    render(<MemoryRouter><TasksPage /></MemoryRouter>);
     await flush();
 
     fireEvent.click(screen.getByRole('button', { name: /取消/ }));

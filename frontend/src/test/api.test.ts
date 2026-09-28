@@ -124,8 +124,9 @@ import {
   signGallery,
   apiFetch,
   ApiError,
+  notify,
+  onToast, // v23 N7 复验：合并重复 import（原 L128/L776 两处 onToast 声明，npx 严格解析下 esbuild 硬报错）
 } from '../api';
-import { onToast } from '../api';
 
 function mockFetch(impl: typeof globalThis.fetch) {
   return vi.spyOn(globalThis, 'fetch').mockImplementation(impl);
@@ -773,7 +774,7 @@ describe('apiFetch 统一错误处理（P1-4）', () => {
 });
 
 // ── notify / onToast：全局 Toast 通知 ───────────────────────────────
-import { notify, onToast } from '../api';
+
 
 describe('Toast 通知（notify/onToast）', () => {
   it('notify 触发所有订阅者，type 默认 info', () => {
@@ -804,5 +805,26 @@ describe('Toast 通知（notify/onToast）', () => {
     expect(b).toBe(1);
     u1();
     u2();
+  });
+});
+
+// ── v23 F2：聊天 429 重试提示字段契约（seconds→minutes） ──────────────
+import { getErrorPayload } from '../components/chat/chat-utils';
+
+describe('getErrorPayload 429 retry 字段（v23 F2 修复）', () => {
+  it('后端只放 retry_after_seconds：应换算为分钟', () => {
+    const p = getErrorPayload({ error: { code: 'RATE.001', message: '太快啦' } }, 429);
+    // 后端实际响应：handlers.py 在 error 顶层放 retry_after_seconds
+    const withSeconds = getErrorPayload(
+      { error: { code: 'RATE.001', message: 'x', retry_after_seconds: 90 } },
+      429,
+    );
+    expect(withSeconds.retryAfterMinutes).toBe(2); // ceil(90/60)
+    expect(p.retryAfterMinutes).toBeUndefined();
+  });
+
+  it('兼容旧 minutes 字段（若未来后端改放 minutes 也不退化）', () => {
+    const p = getErrorPayload({ error: { retry_after_minutes: 3 } }, 429);
+    expect(p.retryAfterMinutes).toBe(3);
   });
 });

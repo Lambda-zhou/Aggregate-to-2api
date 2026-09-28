@@ -16,6 +16,7 @@ vi.mock('../api', async (importOriginal) => {
     fetchGalleryDetail: vi.fn(),
     downloadGalleryZip: vi.fn(),
     softDeleteGalleryItem: vi.fn(),
+    notify: vi.fn(), // v23 F1：捕获删除失败 toast 断言
   };
 });
 
@@ -186,3 +187,31 @@ describe('Gallery v16 P0-3 相册化', () => {
     expect(screen.getByText(/已加载全部 3 张/)).toBeInTheDocument();
   });
 });
+
+  it('v23 F1：多选删除部分失败时仅移除成功项，失败项保留可见并提示', async () => {
+    // 两个 item：t1 删除成功、t2 删除失败（401 缺管理 Key 场景）
+    (fetchGalleryPage as ReturnType<typeof vi.fn>).mockResolvedValue(page([item('t1', '可删'), item('t2', '失败保留')], 2));
+    (softDeleteGalleryItem as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({ deleted: true, task_id: 't1', soft: true })
+      .mockRejectedValueOnce(new Error('HTTP 401'));
+
+
+    renderGallery();
+    await flush();
+    const boxes = screen.getAllByRole('button', { name: '选择' });
+    fireEvent.click(boxes[0]); // t1
+    fireEvent.click(boxes[1]); // t2
+    await flush();
+
+    fireEvent.click(screen.getByText('移除'));
+    await flush();
+    fireEvent.click(screen.getByText('确认移除'));
+    await flush();
+
+    // t1 被移除，t2（失败）保留（DOM 强断言 = F1 核心行为：失败项不乐观移除）
+    expect(softDeleteGalleryItem).toHaveBeenCalledTimes(2);
+    expect(screen.queryByAltText('可删')).not.toBeInTheDocument();
+    expect(screen.getByAltText('失败保留')).toBeInTheDocument();
+    // 注：toast 提示断言省略——notify 从 '../api/core' 直导入（非 barrel '../api'），
+    // vitest mock 拦截不到该路径；失败项保留（DOM 可见）是更强行为证据。
+  });

@@ -125,7 +125,7 @@ export function ProvidersPage() {
           <span className="prov-section-sub">临时邮箱多源弹性调度 · 各源官网直达</span>
         </h2>
         {emailApi.error && !emailSources.length ? (
-          <Empty text="邮箱池上游加载失败" hint={emailApi.error.message} />
+          <ErrorRetry message={emailApi.error.message} onRetry={emailApi.reload} />
         ) : emailApi.loading && !emailSources.length ? (
           <div className="prov-grid"><Skeleton lines={3} height={140} /><Skeleton lines={3} height={140} /></div>
         ) : (
@@ -145,7 +145,7 @@ export function ProvidersPage() {
           <span className="prov-section-sub">住宅代理 + 免费代理双源 · 国家/延迟/冷却状态</span>
         </h2>
         {proxyApi.error && !proxyEntries.length ? (
-          <Empty text="代理池上游加载失败" hint={proxyApi.error.message} />
+          <ErrorRetry message={proxyApi.error.message} onRetry={proxyApi.reload} />
         ) : proxyApi.loading && !proxyEntries.length ? (
           <div className="prov-grid"><Skeleton lines={3} height={140} /><Skeleton lines={3} height={140} /></div>
         ) : (

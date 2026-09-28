@@ -50,7 +50,10 @@ export function CostsPage() {
   // P2-16: 按 provider / 按 model 视角切换（本地 state 过滤，无新依赖）
   const [view, setView] = useState<CostView>('provider');
   // P3-D3: 预算燃烧预测（管理 Key 鉴权；预算=0 时后端返回 disabled=true，前端降级）
-  const { data: forecast } = useApi<CostForecast>(() => fetchCostForecast(), { intervalMs: 60000 });
+  // v23 N4-P1（前端盲点）：此前只取 data 丢弃 error——无管理 Key 时后端强制 check_admin_key
+  // 401，forecast 恒 null → 永久骨架屏无提示无重试（"用户判死功能"）。现读取 error：401/403
+  // 显示"需管理 Key"降级块；其他错误给 ErrorRetry。
+  const { data: forecast, error: forecastError, reload: reloadForecast } = useApi<CostForecast>(() => fetchCostForecast(), { intervalMs: 60000 });
 
   if (error && !cost) return <ErrorRetry message={error.message} onRetry={reload} />;
   if (loading && !cost) {
@@ -358,6 +361,22 @@ export function CostsPage() {
               <div className="cf-note">{forecast.note}</div>
             )}
           </>
+        ) : forecastError ? (
+          // v23 N4-P1：请求失败（尤其 401 无管理 Key）→ 降级提示 + 重试，不再永久骨架屏
+          <div className="cost-forecast-disabled">
+            <span className="cf-disabled-icon">🔐</span>
+            <div className="cf-disabled-body">
+              <div className="cf-disabled-title">预算预测不可用</div>
+              <div className="cf-disabled-msg">
+                {forecastError.message.includes('401') || forecastError.message.includes('403')
+                  ? '该面板需管理 Key 鉴权：请在右上角设置中填写有效的管理 Key（IF_ADMIN_KEYS），刷新后重试。'
+                  : forecastError.message}
+              </div>
+            </div>
+            <button className="tf-btn tf-btn-sm" onClick={reloadForecast} type="button">
+              重试
+            </button>
+          </div>
         ) : (
           <Skeleton lines={3} height={40} />
         )}

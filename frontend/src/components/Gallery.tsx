@@ -313,24 +313,37 @@ export function Gallery({ limit = 20, password, onGalleryFail }: {
     setZipping(false);
   }, [selected, zipping, effectivePwd]);
 
-  /** v16 P0-3：软删选中项（可回滚：后端仅置 status=deleted）。删除前需经确认弹窗。 */
+  /** v16 P0-3：软删选中项（可回滚：后端仅置 status=deleted）。删除前需经确认弹窗。
+   * v23 F1（契约审计）修复：删除需管理 Key（softDeleteGalleryItem 已合并 adminHeaders）；
+   * 单张失败不再静默吞——只本地移除成功项，失败项保留可见 + Toast 报告失败张数。
+   * 此前实现：catch 吞错误 + 乐观移除全部 → 401/403 环境下"已移除 0/N 张"却把列表清空，
+   * 刷新才恢复（"用户点了但没结果"的假反馈）。 */
   const handleDelete = useCallback(async () => {
     const ids = [...selected].filter(Boolean);
     if (!ids.length || deleting) return;
     setDeleting(true);
+    const failed = new Set<string>();
     let ok = 0;
     for (const id of ids) {
       try {
         await softDeleteGalleryItem(id, effectivePwd);
         ok += 1;
-      } catch { /* 单张失败跳过 */ }
+      } catch {
+        failed.add(id); // ids 已由 itemKey() 生成（item.id | image_url | prompt）
+      }
     }
-    // 本地移除已删项 + 清空选择 + 关确认框
-    setItems(prev => prev.filter(it => !selected.has(itemKey(it))));
-    setTotal(t => Math.max(0, t - ok));
+    // 仅本地移除成功删除项（失败的保留，用户可见可重试）
+    if (ok > 0) {
+      setItems(prev => prev.filter(it => !selected.has(itemKey(it)) || failed.has(itemKey(it))));
+      setTotal(t => Math.max(0, t - ok));
+    }
     setSelected(new Set());
     setConfirmDelete(false);
-    notify(`已移除 ${ok}/${ids.length} 张`, ok ? 'success' : 'error');
+    if (failed.size) {
+      notify(`已移除 ${ok}/${ids.length} 张；${failed.size} 张失败（请检查管理 Key/权限后重试）`, ok ? 'info' : 'error');
+    } else {
+      notify(`已移除 ${ok}/${ids.length} 张`, ok ? 'success' : 'error');
+    }
     setDeleting(false);
   }, [selected, effectivePwd, itemKey, deleting]);
 

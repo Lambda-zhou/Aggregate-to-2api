@@ -173,10 +173,25 @@ export function getErrorPayload(payload: unknown, status: number): ChatErrorPayl
     messageCandidate = 'API Key 未配置或无效，请点击右上角【API 接入 & Key】进行配置';
   }
 
-  const retryCandidate = body.retryAfterMinutes ?? body.retry_after_minutes ?? nested?.retryAfterMinutes ?? nested?.retry_after_minutes;
+  // v23 F2（契约审计）：后端 429 只在 error 顶层放 `retry_after_seconds`（秒，handlers.py），
+  // 从不存在 `retry_after_minutes`。此前只读 minutes → 倒计时提示永不显示。改为优先读
+  // seconds 并换算成分钟（向上取整，至少 1 分钟），兼容旧 minutes 字段。
+  const retrySeconds =
+    body.retryAfterSeconds ??
+    body.retry_after_seconds ??
+    nested?.retryAfterSeconds ??
+    nested?.retry_after_seconds;
+  const retryMinutesLegacy =
+    body.retryAfterMinutes ?? body.retry_after_minutes ?? nested?.retryAfterMinutes ?? nested?.retry_after_minutes;
+  const retryAfterMinutes =
+    typeof retrySeconds === 'number'
+      ? Math.max(1, Math.ceil(retrySeconds / 60))
+      : typeof retryMinutesLegacy === 'number'
+        ? retryMinutesLegacy
+        : undefined;
   return {
     message: typeof messageCandidate === 'string' ? messageCandidate : `请求失败（HTTP ${status}）`,
-    retryAfterMinutes: typeof retryCandidate === 'number' ? retryCandidate : undefined,
+    retryAfterMinutes,
   };
 }
 

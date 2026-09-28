@@ -61,6 +61,9 @@ export function SecurityPage() {
     const ip = ipInput.trim();
     if (!ip) { notify('请填写要封禁的 IP 地址', 'error'); return; }
     if (!isValidIp(ip)) { notify(`IP 格式非法: ${ip}（需 IPv4/IPv6 字面量）`, 'error'); return; }
+    // v23 N4-P2：封禁是高风险写操作，与解封（handleUnblock confirm）口径一致补二次确认，
+    // 防误封导致整段 IP/用户被拒访问。
+    if (!confirm(`确定封禁 ${ip}（${BLOCK_TYPE_META[blockType].label}）？该 IP 将被限制访问。`)) return;
     setSubmitting(true);
     // P2-C3: aria-live 区域宣告封禁进度
     const liveRegion = document.getElementById('sec-live');

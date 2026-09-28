@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { fetchTasks, cancelTask, retryTask, notify } from '../api';
 import { Skeleton, ErrorRetry } from '../components/Feedback';
 import { Skeleton as SkeletonStructured } from '../components/Skeleton';
@@ -18,6 +19,9 @@ const COL_COUNT = 9;
 export function TasksPage() {
   // P1-6 i18n：响应式 t()
   const t = useT();
+  // v23 N4-P2：空态 CTA 用 react-router navigate（此前硬编码 window.location.pathname='/admin/generate'
+  // 会 (a) base 非 /admin 部署下 404、(b) 整页刷新丢 SPA 状态）。useNavigate 解析应用 base 正确。
+  const navigate = useNavigate();
   const [status, setStatus] = useState('');
   const { data, loading, error, reload } = useApi(
     () => fetchTasks({ limit: 50, status: status || undefined }),
@@ -120,7 +124,7 @@ export function TasksPage() {
                         text={t('tasks.emptyText')}
                         hint={t('tasks.emptyHint')}
                         ctaLabel={t('tasks.emptyCta')}
-                        onCta={() => { window.location.hash = ''; window.location.pathname = '/admin/generate'; }}
+                        onCta={() => { navigate('/generate'); }}
                       />
                     </td>
                   </tr>
