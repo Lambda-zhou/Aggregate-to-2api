@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>听风AI · v21→v22→v22.0.1 终局变更报告</title>
+<style>
+  :root { --bg:#0a0e1a; --panel:#12182b; --panel2:#0d1322; --text:#e6e9f2; --muted:#9aa3b5; --accent:#38bdf8; --good:#4ade80; --warn:#fbbf24; --bad:#f87171; --border:#232b42; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; line-height:1.7; }
+  .wrap { max-width:1000px; margin:0 auto; padding:40px 24px 80px; }
+  header.hero { text-align:center; padding:40px 0 24px; border-bottom:1px solid var(--border); margin-bottom:28px; }
+  header.hero h1 { font-size:28px; margin:0 0 8px; }
+  header.hero .sub { color:var(--muted); font-size:14px; }
+  .badge { display:inline-block; padding:4px 12px; border-radius:999px; font-size:12px; font-weight:600; margin:3px; }
+  .badge.ok { background:rgba(74,222,128,.12); color:var(--good); border:1px solid rgba(74,222,128,.3); }
+  h2 { font-size:21px; margin:38px 0 10px; padding-bottom:8px; border-bottom:1px solid var(--border); }
+  h3 { font-size:16px; margin:24px 0 8px; color:var(--accent); }
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px 18px; margin:12px 0; }
+  .muted { color:var(--muted); }
+  table { width:100%; border-collapse:collapse; margin:12px 0; font-size:13.5px; }
+  th,td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
+  th { background:var(--panel2); font-weight:600; color:var(--accent); }
+  code { background:rgba(56,189,248,.1); padding:1px 5px; border-radius:4px; font-size:12.5px; font-family:"Cascadia Code",Consolas,monospace; color:#bae6fd; }
+  pre { background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:12px; overflow-x:auto; font-size:12.5px; }
+  .ok-t { color:var(--good); font-weight:600; }
+  ul { padding-left:20px; } li { margin:5px 0; }
+  .quiz details { border-top:1px solid var(--border); padding:10px 0; }
+  .quiz details summary { cursor:pointer; font-weight:600; }
+  .quiz .ans { color:var(--good); font-size:14px; margin:6px 0 0; }
+  footer { margin-top:40px; padding-top:14px; border-top:1px solid var(--border); color:var(--muted); font-size:12.5px; text-align:center; }
+</style>
+</head>
+<body><div class="wrap">
+
+<header class="hero">
+  <h1>听风AI · 终局变更报告</h1>
+  <div class="sub">v21.0.0 → v22.0.0 → v22.0.1 ｜ imagefree-2ai ｜ 2026-09-27</div>
+  <div>
+    <span class="badge ok">版本门禁 ✅</span>
+    <span class="badge ok">i18n 15/15 ✅</span>
+    <span class="badge ok">PWA installable ✅</span>
+    <span class="badge ok">SSE 连接保护 ✅</span>
+    <span class="badge ok">3×Release 已发布 ✅</span>
+  </div>
+</header>
+
+<h2>1. 上下文：为什么做这些变更</h2>
+<div class="card">
+  <p><strong>项目画像</strong>：听风AI 是已上生产的 AI 网关（Azure，公益开放），聚合 imagefree.net / aifreeforever.com / tryingopen 上游，统一 OpenAI 风格 <code>/v1/*</code>。含 AI 工具门户（Vue3）、React 站长后台、Agent DAG 编排、MCP、桌面版、PWA。</p>
+  <p><strong>起点</strong>：v20.3.x 已完成门户重构、nginx 加速、DAG explain、数据备份闭环。全量审计发现 14+ 缺口：版本漂移（api 20.3.10 vs git 20.3.11，e2e 契约停在 20.0.0）、i18n 差 1 页、PWA 不可安装、litestream 建而未启、测试隔离债等。</p>
+  <p><strong>方法论</strong>：Spec-Kit 7 阶段规范 → 真实落地（每项带验收命令）→ 独立审查线程六维复核 → 修复 → 复验闭环。烧钱链路（真实图片/视频生成）Mock 覆盖；外部资源（R2/Grafana/UptimeRobot）文档化路径标 L2 授权。</p>
+</div>
+
+<h2>2. 直觉：核心命题</h2>
+<div class="card">
+  <ul>
+    <li><strong>一次调用即跑通</strong>：版本门禁 CI 首步 fail-fast，漂移自动红；调用者按 README 最少步骤可用。</li>
+    <li><strong>不重复造轮子</strong>：复用 compose obs/backup profile、vite manualChunks、既有 sw.js、_pkg_attr 契约——只做"启用 + 验证"。</li>
+    <li><strong>诚实披露</strong>：R2 真上传、Grafana Cloud、UptimeRobot 账户标「待验证/L2 授权」，不伪装启用。</li>
+    <li><strong>测试防伪</strong>：独立审查抓到 H1 伪测试（generator 429 分支零覆盖）→ 改真端到端；config 双向校验盲区误报 10 个合法消费 → 扩展扫描暴露 8 个真实模板缺口。</li>
+  </ul>
+</div>
+
+<h2>3. 实际做了什么（三版本变更清单 + 证据）</h2>
+
+<h3>v21.0.0 — 基座（Release 397768628）</h3>
+<div class="card"><table>
+  <tr><th>域</th><th>变更</th><th>证据</th></tr>
+  <tr><td>版本门禁</td><td><code>test_version_consistency.py</code> 4 用例 + <code>sync_version.py</code>（--set/--check/--dry-run）+ 全链统一 21.0.0</td><td class="ok-t">pytest 4 passed</td></tr>
+  <tr><td>i18n 收尾</td><td>DLQ 页补 <code>dlq.*</code> 25 key，管理端 15/15 页覆盖</td><td class="ok-t">vitest 296/296</td></tr>
+  <tr><td>PWA</td><td>manifest + pwa-192/512/180 图标 + PwaInstallPrompt.vue + iOS meta；复用 sw.js（预缓存补 manifest，CACHE_NAME v21）</td><td class="ok-t">landing build 成功</td></tr>
+  <tr><td>SEO/运维</td><td>sitemap/robots + uptime_probe.py + litestream 启用路径文档 + .env.production.example 凭证位</td><td class="ok-t">入 dist / py_compile</td></tr>
+  <tr><td>审查修复</td><td>B1（appinstalled 监听器泄漏）+ B2（GBK ✅ 崩溃）修复；H1（文件存在断言）+ H2（主题色双源注释）</td><td class="ok-t">版本门禁 4 passed</td></tr>
+</table></div>
+
+<h3>v22.0.0 — 生产收益（Release 397787046）</h3>
+<div class="card"><table>
+  <tr><th>域</th><th>变更</th><th>证据</th></tr>
+  <tr><td>SSE 保护</td><td>TaskEventHub.max_connections + subscribe 超限抛 ConnectionError；generator/WS 产出 429；<code>IF_SSE_MAX_CONNECTIONS=0</code> 缺省关</td><td class="ok-t">单测 3 用例 + sse/ws 25 pass</td></tr>
+  <tr><td>CI 门禁</td><td>ci.yml 单测首步版本一致性 fail-fast</td><td class="ok-t">YAML 校验 8 steps</td></tr>
+  <tr><td>脚本单测</td><td>sync_version 6 用例（SYNC_VERSION_ROOT 隔离）+ uptime_probe 6 用例（200/503/GBK 不崩）+ Handler 类属性污染重置</td><td class="ok-t">6+6 passed</td></tr>
+  <tr><td>版本统一</td><td>21.0.0 → 22.0.0（14 文件 + e2e 契约）+ 双 dist 重建 + sw v22.0.0</td><td class="ok-t">--check 全链一致</td></tr>
+</table></div>
+
+<h3>v22.0.1 — 终局审计修复（Release 397806294）</h3>
+<div class="card"><table>
+  <tr><th>域</th><th>变更</th><th>证据</th></tr>
+  <tr><td>config 校验盲区</td><td><code>_config_consumed</code> 扫描扩展至整个 api/（原误报 10 个合法消费为孤儿）→ 暴露并补 8 个真实模板缺口</td><td class="ok-t">config_validate 20 passed</td></tr>
+  <tr><td>env 模板</td><td>.env.example + production 补号池调参 8 变量 + production 补 IF_SSE_MAX_CONNECTIONS</td><td class="ok-t">双向校验绿</td></tr>
+  <tr><td>H1 伪测试</td><td>generator 429 用例改真端到端（se.FakeRequest 不存在恒退化 → 本地 FakeRequest 驱动）；断言修正 <code>event: error</code></td><td class="ok-t">修复后测试真跑通过</td></tr>
+  <tr><td>注释同步</td><td>e2e_v12.py 头部 20.0.0 → 22.0.0</td><td class="ok-t">—</td></tr>
+</table></div>
+
+<h2>4. 测试与验证结果（真实命令）</h2>
+<div class="card"><table>
+  <tr><th>验证</th><th>命令</th><th>结果</th></tr>
+  <tr><td>版本门禁</td><td><code>py -m pytest tests/test_version_consistency.py -q</code></td><td class="ok-t">4 passed</td></tr>
+  <tr><td>SSE/uptime/sync 全量</td><td><code>pytest test_sse_events_unit + uptime_probe + sync_version</code></td><td class="ok-t">70 passed</td></tr>
+  <tr><td>openapi 契约</td><td><code>pytest tests/test_openapi_contract.py -q</code></td><td class="ok-t">20 passed（版本+dist+三处一致性）</td></tr>
+  <tr><td>config 校验</td><td><code>pytest tests/test_config_validate.py -q</code></td><td class="ok-t">20 passed（修复前后）</td></tr>
+  <tr><td>核心回归</td><td><code>pytest adaptive_router / request_guard / agent_intent</code></td><td class="ok-t">35 passed</td></tr>
+  <tr><td>前端</td><td><code>vitest run --pool=threads</code></td><td class="ok-t">296/296（v21 基线）</td></tr>
+  <tr><td>构建</td><td>frontend + landing build</td><td class="ok-t">index gzip 84.04kB</td></tr>
+</table></div>
+
+<h2>5. 诚实披露（剩余边界）</h2>
+<div class="card"><ul>
+  <li><strong>litestream R2 真接 / Grafana Cloud / UptimeRobot</strong>：需外部凭证（L2 授权后启用）；路径已文档化。</li>
+  <li><strong>真实付费上游 E2E</strong>（生图/视频）：付费红线，Mock 覆盖（mock_cfsolver 全链路）。</li>
+  <li><strong>凭证文件 <code>_dep33.py</code>/<code>_srv_py.py</code></strong>：含生产 SSH 明文凭证，已 .gitignore 防护，未提交；建议轮换（v22 P0-4 已列）。</li>
+  <li><strong>复验线程</strong>：对 v22.0.1 修复的复核运行中——若返回新问题会继续处理。</li>
+</ul></div>
+
+<h2>6. 变更测验（你必须通过）</h2>
+<p class="muted">10 题覆盖全部关键变更，请先自答再展开核对。</p>
+<div class="quiz">
+  <details><summary>Q1：三个发布版本各自核心是什么？</summary><p class="ans">✅ v21 基座（版本门禁/i18n/PWA/SEO）+ v22 生产收益（SSE 保护/CI 门禁/脚本单测）+ v22.0.1 审计修复（config 盲区/H1 伪测试）。</p></details>
+  <details><summary>Q2：版本漂移靠什么在 CI 首步拦截？</summary><p class="ans">✅ <code>test_version_consistency.py</code>（文件存在+semver+全链相等+e2e 契约四层），ci.yml 单测首步 fail-fast。</p></details>
+  <details><summary>Q3：SSE 连接上限如何配置？缺省值多少？</summary><p class="ans">✅ <code>IF_SSE_MAX_CONNECTIONS</code>（0=不限制，缺省关向后兼容）；超限 subscribe 抛 ConnectionError，generator/WS 产出 429。</p></details>
+  <details><summary>Q4：uptime_probe 对 503 与网络错误如何区分？</summary><p class="ans">✅ 503 返回真实状态码（HTTPError 分支）；连接失败/超时/DNS 返回 -1（OSError 分支）。</p></details>
+  <details><summary>Q5：config 双向校验测试修复了什么盲区？</summary><p class="ans">✅ <code>_config_consumed</code> 原只扫 config 包，误报 email_sources/prompts/vector 等直接 os.getenv 的 10 个合法消费为孤儿；扩展至整个 api/ 后暴露并补 8 个真实模板缺口。</p></details>
+  <details><summary>Q6：H1 伪测试的缺陷是什么？如何修复？</summary><p class="ans">✅ generator 429 用例用 <code>se.FakeRequest</code>（不存在）恒走退化分支，429 分支零覆盖；改用测试本地 FakeRequest 真端到端驱动，断言 <code>event: error</code>。</p></details>
+  <details><summary>Q7：前端 i18n 覆盖到什么程度？</summary><p class="ans">✅ 管理端 15/15 页面双语（DLQ 页 v21 收尾，25 key 平行），<code>isLangComplete()</code> 断言锁定 zh/en 一致。</p></details>
+  <details><summary>Q8：PWA 为什么没重写 sw.js？</summary><p class="ans">✅ 既有 sw.js 三策略正确（静态 Cache-First/API Network-First/字体 SWR），只补 manifest/图标/安装提示（installability），预缓存加 manifest+图标，CACHE_NAME 升版。</p></details>
+  <details><summary>Q9：独立审查在 v22 抓到什么真实问题？</summary><p class="ans">✅ H1 伪测试（generator 429 分支零覆盖）+ config 双向校验盲区（10 个合法消费误报孤儿、8 个真实模板缺口）。均已修复并验证。</p></details>
+  <details><summary>Q10：三个 Release 的 id 是什么？</summary><p class="ans">✅ v21.0.0=397768628、v22.0.0=397787046、v22.0.1=397806294（均推送到 main + tag）。</p></details>
+</div>
+
+<footer>听风AI imagefree-2ai · 终局报告 · 2026-09-27 · 完整证据见 docs/verification-log.md</footer>
+</div></body></html>
+
+<!-- ═══ v22.1.x 终局增补（2026-09-28）═══ -->
+<div class="wrap"><div class="card">
+<h2 style="border-bottom:1px solid var(--border);padding-bottom:8px">v22.1.x 终局增补（11×Release 已发布）</h2>
+<table>
+<tr><th>版本</th><th>Release ID</th><th>核心内容</th></tr>
+<tr><td>v22.1.0</td><td>397829249</td><td>litestream 恢复演练 / P0-4 安全清理 / SOP 观察栈+solver 路径</td></tr>
+<tr><td>v22.1.1</td><td>397837348</td><td>移动端 375 冒烟（真实 chromium）+ 测试引用失效修复</td></tr>
+<tr><td>v22.1.2</td><td>397860058</td><td>landing vitest 基建 + PwaInstallPrompt 5 用例</td></tr>
+<tr><td>v22.1.3</td><td>397903254</td><td>SSE 心跳参数化 + health-report 邮箱源 import 超时降级（真实 E2E 发现 HIGH）</td></tr>
+<tr><td>v22.1.4</td><td>397919440</td><td>P2 工程深化：画廊 decoding / config OTel 拆分 / SEO 版本对齐</td></tr>
+<tr><td>v22.1.5</td><td>397934843</td><td>终局审计：独立审查 APPROVE + skill 更新 + M1/M2 注释修正</td></tr>
+</table>
+<p><strong>终局审计结论</strong>：独立审查 v22.1.x 全批 APPROVE（82 passed + openapi 20 + 编译通过，无阻塞缺陷）；前后端契约 100% 对齐（前端 28 端点全匹配后端 96 路由）；盲点扫描干净（无 TODO 欺骗 / 硬编码凭证 / 版本残留 / 日志脱敏泄漏）。</p>
+<h3>终局测验（v22.1.x，必须通过）</h3>
+<div class="quiz">
+<details><summary>Q1：真实 E2E 发现并修复了 health-report 的什么问题？</summary><p class="ans">✅ 邮箱源同步 import 域名探测阻塞（9 源串行 45-90s）——修复为 run_in_executor + wait_for(8s) 超时降级 error 项，health-report 8.4s 内返回而非 30s 挂起。</p></details>
+<details><summary>Q2：前后端契约审计结论是什么？</summary><p class="ans">✅ 前端 28 个调用端点全部匹配后端 96 条路由，100% 对齐无断裂（/v1/agent/plan 是注释历史描述非真调用）。</p></details>
+<details><summary>Q3：SSE 心跳如何参数化？</summary><p class="ans">✅ IF_SSE_HEARTBEAT_INTERVAL（缺省 15s 向后兼容）+ set/heartbeat_interval() 动态读，ws_events 导入时快照。</p></details>
+<details><summary>Q4：config 拆分做到了什么程度？</summary><p class="ans">✅ OTel 段抽离为 api/config/otlp.py（三类读点零破坏）；剩余 800+ 行强耦合 settings 单例不硬拆（契约风险>收益，诚实标注）。</p></details>
+<details><summary>Q5：P2-4 SEO 深化修了什么真实缺陷？</summary><p class="ans">✅ JSON-LD softwareVersion 15.1.1→22.0.0（严重过时）+ featureList 补 DAG/PWA + 防漂移注释。</p></details>
+<details><summary>Q6：P2-5 成本预测是否需重做？</summary><p class="ans">✅ 不重做——Costs 页已接 fetchCostForecast（projected_exceed_date/days_remaining/daily_avg_30d/disabled 四态齐全）。</p></details>
+<details><summary>Q7：终局审计用了哪些验证手段？</summary><p class="ans">✅ 独立审查线程六维（需求/逻辑/边界/质量/覆盖/运行）+ 前后端契约差集审计 + 盲点扫描（TODO/硬编码/版本/日志脱敏）。</p></details>
+</div>
+</div></div>
