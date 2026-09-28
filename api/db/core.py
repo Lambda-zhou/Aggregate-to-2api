@@ -66,14 +66,20 @@ def _atexit_stop_db_threads() -> None:
 atexit.register(_atexit_stop_db_threads)
 
 
+# v23 P1-1（独立审查）：批量写单条失败的最大重试次数。达到后视为永久失败丢弃，
+# 防止坏 SQL 无限重试阻塞头部 + 缓冲无界增长。取 5：batch_window=0.2s → 约 1s 窗口。
+_MAX_WRITE_ATTEMPTS = 5
+
+
 class BatchWrite:
     """写操作缓冲条目（IMP-25）。"""
 
-    __slots__ = ("sql", "params")
+    __slots__ = ("sql", "params", "attempts")
 
     def __init__(self, sql: str, params: tuple[Any, ...]):
         self.sql = sql
         self.params = params
+        self.attempts = 0  # v23 P1-1：已重试次数（永久失败隔离用）
 
 
 class DB(DBQueriesMixin):
@@ -110,6 +116,8 @@ class DB(DBQueriesMixin):
         self._write_buffer: list[BatchWrite] = []
         self._batch_running = False
         self._commit_count = 0
+        # v23 P1-1：永久失败写条目丢弃计数（隔离观测，防缓冲无界增长）
+        self._dead_letters = 0
 
         # ── WAL 定期 checkpoint（P1-L）────────────────────
         self._checkpoint_running = False
@@ -193,7 +201,12 @@ class DB(DBQueriesMixin):
 
     @staticmethod
     async def _create_conn(path: str, timeout: int = 5) -> aiosqlite.Connection:
-        """创建一条 aiosqlite 连接（WAL + NORMAL + busy_timeout + autocommit）。"""
+        """创建一条 aiosqlite 连接（WAL + NORMAL + busy_timeout + autocommit）。
+
+        v23 N2 审计确认：isolation_level=None 使连接处于 **autocommit**——每条
+        execute 独立提交，不用也不等 commit()。单语句原子性由 SQLite 保证；
+        批量 ``_flush_buffer`` 是"合并调度"而非"单事务合并提交"（口径已知）。
+        """
         conn = await aiosqlite.connect(path, timeout=timeout, isolation_level=None)
         conn.row_factory = aiosqlite.Row
         await conn.execute("PRAGMA journal_mode=WAL")
@@ -284,16 +297,49 @@ class DB(DBQueriesMixin):
         self._write_buffer.append(BatchWrite(sql, params))
 
     async def _flush_buffer(self) -> None:
-        """批量执行缓冲区所有 SQL 并 commit（需在 _lock 内调用）。"""
+        """批量执行缓冲区所有 SQL（autocommit 下每条独立提交；失败重试有上限，不无限堆积）。
+
+        v23 N2 审计（SQL 审计 P1-L1）：连接为 autocommit（isolation_level=None），
+        本方法**不提供"单事务原子批"**——每条 execute 立即提交，末尾 commit() 为 no-op。
+        「0.2s 窗口合并 commit」的准确口径是**合并调度**（把高频写聚到一条连接顺序执行），
+        非事务合并。因此：
+        - 单语句原子性由 SQLite autocommit 保证（create_request/mark_* 均为单语句）；
+        - 批内第 k 条失败时，已提交的 k-1 条保留，**未执行语句回写缓冲区**（不静默丢失）；
+        - v23 P1-1（独立审查）：回写条带 attempts 计数，达到 ``_MAX_WRITE_ATTEMPTS`` 后
+          视为永久失败——丢弃（记 ``_dead_letters`` + error 日志）并让后续条继续，
+          防止"坏 SQL 永久阻塞头部 + 缓冲随新写入无界增长 + 每 0.2s 日志风暴"。
+        - 失败不中断 batch timer（记日志 + 保留剩余语句，异常不向上抛炸 cycle）。
+        """
         if not self._write_buffer:
             return
         buf, self._write_buffer = self._write_buffer, []
         _, conn, conn_lock = await self._get_write_conn()
         async with conn_lock:
-            for bw in buf:
-                await conn.execute(bw.sql, bw.params)
-            await conn.commit()
-            self._commit_count += 1
+            try:
+                for idx, bw in enumerate(buf):
+                    await conn.execute(bw.sql, bw.params)
+                await conn.commit()
+                self._commit_count += 1  # 每次 flush 计 1 次提交（既有测试契约）
+            except Exception as e:  # noqa: BLE001
+                # idx 指向失败那条；buf[idx:]（含失败条本身）未执行。
+                # 已提交语句不可回滚（autocommit），属预期非原子语义。
+                remaining = buf[idx:]
+                first = remaining[0]
+                first.attempts += 1
+                if first.attempts >= _MAX_WRITE_ATTEMPTS:
+                    # 永久失败：丢弃失败条，后续条继续回写重试（隔离头部阻塞）
+                    self._dead_letters += 1
+                    log.error(
+                        "DB 批量写永久失败（已重试 %d 次），丢弃该条: %s… → %s",
+                        first.attempts, first.sql[:120], e,
+                    )
+                    remaining = remaining[1:]
+                else:
+                    log.warning(
+                        "DB 批量写失败（第 %d/%d 次），回写重试: %s… → %s",
+                        first.attempts, _MAX_WRITE_ATTEMPTS, first.sql[:80], e,
+                    )
+                self._write_buffer = remaining + self._write_buffer
 
     async def flush(self) -> None:
         """公开方法：强制刷新缓冲区到 DB（stop 时调用确保数据不丢）。"""

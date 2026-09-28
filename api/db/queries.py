@@ -20,6 +20,12 @@ import aiosqlite
 from .. import base64_store, config
 from ..telemetry import get_tracer
 
+# v23 N2 P1-S2 / N7 P2-3：画廊可见状态白名单——**单一常量源**。
+# 实证：成功路径 mark_finished 写 "completed" 且带 image_url（dispatch.py:329-332）；
+# 失败路径 "error" 不带图；"failed" 为历史兼容态（旧库可能残存带图 failed 行）。
+# 故白名单含三者，避免未来新增"带图终态"时在 queries.py 内联硬编码处静默消失。
+GALLERY_VISIBLE_STATUSES: tuple[str, ...] = ("completed", "error", "failed")
+
 log = logging.getLogger("db")
 
 
@@ -325,11 +331,19 @@ class DBQueriesMixin:
         # H2 修复（审查）：total 与数据查询必须同口径——无图行（image_url IS NULL）两处都不计，
         # 否则前端 hasMore = items.length < total 恒真，无限滚动永不终止。
         # P1-8：archived 冷归档任务不参与热画廊列表。
-        where = ["status NOT IN ('deleted','pending','archived')", "image_url IS NOT NULL"]
+        # v23 N2 审计（P1-S2）：默认过滤改**正向白名单**而非 `status NOT IN (...)`——
+        # 负向条件让优化器弃用 (status, finished_at) 索引退化为全索引扫描；
+        # 正向 IN 可走索引。显式 status 参数只追加 status=?（保留 cancelled/processing 等
+        # 全状态显式过滤能力），二者互斥避免白名单误伤显式过滤。
+        where = ["image_url IS NOT NULL"]
         params: list[Any] = []
         if status:
             where.append("status=?")
             params.append(status)
+        else:
+            placeholders = ",".join("?" * len(GALLERY_VISIBLE_STATUSES))
+            where.append(f"status IN ({placeholders})")
+            params.extend(GALLERY_VISIBLE_STATUSES)
         if model:
             where.append("model=?")
             params.append(model)

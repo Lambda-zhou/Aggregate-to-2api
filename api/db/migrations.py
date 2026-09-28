@@ -152,6 +152,15 @@ async def _apply_request_migrations(conn: aiosqlite.Connection) -> None:
         if col not in cols:
             await conn.execute(f"ALTER TABLE requests ADD COLUMN {col} {ddl}")
     await conn.execute("CREATE INDEX IF NOT EXISTS idx_requests_created_status ON requests(created_at, status)")
+    # v23 SQL 审计（N2）索引缺口补齐——全部 IF NOT EXISTS 幂等，纯增量不锁业务
+    # queries.py:409 stats_overview 全表聚合（/metrics 每次裸扫）→ (status,duration_sec,created_at) 覆盖
+    await conn.execute("CREATE INDEX IF NOT EXISTS idx_requests_status_dur ON requests(status, duration_sec, created_at)")
+    # queries.py:436-478 stats_daily/monthly GROUP BY day/month 全扫+临时分组
+    await conn.execute("CREATE INDEX IF NOT EXISTS idx_requests_day ON requests(day, status)")
+    await conn.execute("CREATE INDEX IF NOT EXISTS idx_requests_month ON requests(month, status)")
+    # queries.py:256 list_tasks 按 model / duration_sec 过滤排序
+    await conn.execute("CREATE INDEX IF NOT EXISTS idx_requests_model ON requests(model, created_at)")
+    await conn.execute("CREATE INDEX IF NOT EXISTS idx_requests_duration ON requests(duration_sec)")
     await conn.commit()
 
 

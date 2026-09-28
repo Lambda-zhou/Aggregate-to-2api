@@ -13,6 +13,8 @@ import tempfile
 
 import pytest
 
+from api.db.core import BatchWrite
+
 
 async def _make_db(enabled: bool = True, window: float = 0.2):
     """创建临时 DB 实例，返回 (db, path)。"""
@@ -146,6 +148,64 @@ class TestBatchWriteEnabled:
             await db.flush()
             assert db._commit_count == before  # 空 buffer 不 commit
         finally:
+            await _cleanup(db, path)
+
+    @pytest.mark.asyncio
+    async def test_flush_partial_failure_rewrites_unexecuted_sql(self):
+        """v23 N2 P1-L1：批内某条失败时未执行语句回写缓冲区，下次 flush 重试不丢。"""
+        db, path = await _make_db(enabled=True)
+        try:
+            # 3 条写入：第 2 条将因 NOT NULL 约束失败（image_url 传 None 但 mock 失败场景）
+            # 用一条必然失败的 SQL 插在中间，模拟批内第 2 条报错
+            await db.create_request("ok1", "p", "1:1", False)
+            db._write_buffer.append(BatchWrite("INSERT INTO nonexistent_zzz (id) VALUES (?)", ("x",)))
+            await db.create_request("ok2", "p", "1:1", False)
+            assert len(db._write_buffer) == 3
+
+            # flush 应：成功写 ok1（autocommit 已提交），失败条 + ok2 回写缓冲
+            await db.flush()
+            assert len(db._write_buffer) == 2, "未执行语句应回写缓冲（失败条 + ok2）"
+            # 重新入队的是失败条 + ok2；换回合法 SQL 后再 flush 应全部落库
+            db._write_buffer = db._write_buffer[1:]  # 丢弃必然失败的坏 SQL
+            await db.flush()
+            assert len(db._write_buffer) == 0
+            assert await db.get("ok1") is not None, "失败前已提交语句保留"
+            assert await db.get("ok2") is not None, "失败后回写的语句最终落库"
+        finally:
+            await _cleanup(db, path)
+
+    @pytest.mark.asyncio
+    async def test_flush_permanent_failure_discarded_after_attempts(self):
+        """v23 P1-1（独立审查）：永久失败条达到重试上限后被丢弃，不无限重试、不堆积缓冲。"""
+        import api.db.core as _c
+        from api.db.core import BatchWrite
+
+        old_max = _c._MAX_WRITE_ATTEMPTS
+        _c._MAX_WRITE_ATTEMPTS = 3  # 缩短重试窗口便于测试
+        db, path = await _make_db(enabled=True)
+        try:
+            # 一条必然失败的坏 SQL + 一条正常写入
+            await db.create_request("good", "p", "1:1", False)
+            db._write_buffer.insert(0, BatchWrite("INSERT INTO nonexistent_zzz (id) VALUES (?)", ("bad",)))
+            assert len(db._write_buffer) == 2
+
+            # 前 _MAX-1 次 flush：失败条回写 + 正常条被头部阻塞（顺序保证依赖语义）
+            for _ in range(_c._MAX_WRITE_ATTEMPTS - 1):
+                await db.flush()
+                assert db._dead_letters == 0, "未到上限不应丢弃"
+
+            # 第 _MAX 次：失败条已达上限被丢弃，good 与失败条同批被回写、仍在缓冲
+            await db.flush()
+            assert db._dead_letters == 1, "永久失败条应被隔离丢弃"
+            # 再 flush 一次：缓冲内仅剩 good（坏 SQL 已隔离），落库
+            await db.flush()
+            assert len(db._write_buffer) == 0, "坏 SQL 隔离后正常条落库，缓冲清空"
+            assert await db.get("good") is not None, "永久失败条隔离后正常条仍落库"
+            assert len(db._write_buffer) == 0 or all(
+                b.sql == "INSERT INTO nonexistent_zzz (id) VALUES (?)" for b in db._write_buffer
+            ), "坏 SQL 不应继续占据缓冲"
+        finally:
+            _c._MAX_WRITE_ATTEMPTS = old_max
             await _cleanup(db, path)
 
     @pytest.mark.asyncio

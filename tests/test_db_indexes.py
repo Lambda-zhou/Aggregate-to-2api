@@ -102,6 +102,26 @@ class TestStatsWithDayMonth:
         assert isinstance(result, list)
 
 
+class TestV23Indexes:
+    """v23 SQL 审计（N2）补加的索引应真实存在。"""
+
+    @pytest.mark.asyncio
+    async def test_v23_requests_indexes_created(self, tmp_db):
+        """N2 审计补的 requests 索引全部落库。"""
+        _, conn, lock = await tmp_db._get_write_conn()
+        async with lock:
+            cursor = await conn.execute("SELECT name FROM sqlite_master WHERE type='index'")
+            names = {r[0] for r in await cursor.fetchall()}
+        for idx in (
+            "idx_requests_status_dur",
+            "idx_requests_day",
+            "idx_requests_month",
+            "idx_requests_model",
+            "idx_requests_duration",
+        ):
+            assert idx in names, f"v23 缺失索引: {idx}"
+
+
 class TestCleanupAnalyze:
     """cleanup 后 ANALYZE 触发。"""
 
