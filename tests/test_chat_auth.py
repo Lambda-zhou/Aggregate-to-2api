@@ -87,7 +87,6 @@ def test_meta_does_not_leak_full_key(client_with_auth):
 
 def test_auth_status_admin_can_copy_key(client_with_auth, monkeypatch):
     """携带管理面有效 Key（或继承业务 Key）时，站长可一键复制完整 key。"""
-    from fastapi import Request
 
     def _fake_admin(request: Request, *, scope: str = "admin-security") -> None:
         return None
@@ -304,3 +303,80 @@ def test_chat_router_is_mounted_on_api_router():
     assert "/v1/chat/completions" in mounted_paths
     assert "/v1/chat/models" in mounted_paths
     assert "/v1/messages" in mounted_paths
+
+
+# ── v23 S-3 防穿透补测：限流 429 触发路径（覆盖率缺口 T4）────────────────
+from starlette.requests import Request
+
+
+def _mk_request(xff: str | None = None) -> Request:
+    headers = []
+    if xff:
+        headers.append((b"x-forwarded-for", xff.encode()))
+    scope = {
+        "type": "http", "method": "POST", "path": "/v1/chat/completions",
+        "headers": headers, "client": ("1.2.3.4", 1234), "server": ("t", 80),
+        "scheme": "http", "query_string": b"", "state": {},
+    }
+    return Request(scope)
+
+
+def test_chat_rate_limit_429_when_sliding_window_full():
+    """v23 S-3：check_chat_rate_limit 滑动窗口满 → 429 + retry_after_seconds。"""
+    import api.config
+    from api import auth as _auth
+    old = getattr(api.config.settings, "if_chat_rate_limit", 60)
+    try:
+        # 收紧到 3 便于触发
+        api.config.settings.if_chat_rate_limit = 3
+        _auth.reset_chat_rate_state()
+        req = _mk_request()
+        for _ in range(3):
+            _auth.check_chat_rate_limit(req)  # 3 次入桶
+        # 第 4 次 → 429
+        from api.errors import AppError as AE
+        try:
+            _auth.check_chat_rate_limit(_mk_request())
+            raise AssertionError("应 429")
+        except AE as e:
+            assert e.status_code == 429
+            assert e.details.get("retry_after_seconds", 0) >= 1
+        _auth.reset_chat_rate_state()
+    finally:
+        import api.config
+        api.config.settings.if_chat_rate_limit = old
+
+
+def test_chat_rate_limit_zero_disables():
+    """v23 S-3 边界：limit<=0 直接放行（关闭限流）。"""
+    import api.config
+    from api import auth as _auth
+    old = getattr(api.config.settings, "if_chat_rate_limit", 60)
+    try:
+        api.config.settings.if_chat_rate_limit = 0
+        _auth.reset_chat_rate_state()
+        _auth.check_chat_rate_limit(_mk_request())  # 不抛
+    finally:
+        import api.config
+        api.config.settings.if_chat_rate_limit = old
+
+
+def test_dag_rate_limit_429_after_limit():
+    """v23 S-3：check_dag_rate_limit 超限 → 429。"""
+    import api.config
+    from api import auth as _auth
+    from api.errors import AppError as AE
+    old = getattr(api.config.settings, "if_dag_requests_per_minute", 30)
+    try:
+        api.config.settings.if_dag_requests_per_minute = 2
+        _auth.reset_chat_rate_state()
+        _auth.check_dag_rate_limit(_mk_request())
+        _auth.check_dag_rate_limit(_mk_request())
+        try:
+            _auth.check_dag_rate_limit(_mk_request())
+            raise AssertionError("应 429")
+        except AE as e:
+            assert e.status_code == 429
+    finally:
+        import api.config
+        api.config.settings.if_dag_requests_per_minute = old

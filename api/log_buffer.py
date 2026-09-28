@@ -71,10 +71,13 @@ class LogBufferHandler(logging.Handler):
             except Exception:
                 pass
             # B4: 结构化 attrs（透传 LogRecord 的非标准属性，供 json-line 消费）
+            # v23 T4 修复：`attr_` 前缀是 5 字符，此前 k[6:] 多剥一个字符——
+            # attr_custom 被错剥成 `ustom`，结构化键错位（覆盖率补测实证暴露）。
             attrs = {}
+            _ATTR_PREFIX_LEN = len("attr_")
             for k, v in record.__dict__.items():
                 if k.startswith("attr_") and not k.startswith("_"):
-                    attrs[k[6:]] = v
+                    attrs[k[_ATTR_PREFIX_LEN:]] = v
             if attrs:
                 entry["attrs"] = attrs
             self.buffer.append(entry)

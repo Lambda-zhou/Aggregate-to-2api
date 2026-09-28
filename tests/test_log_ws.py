@@ -64,6 +64,7 @@ def test_ws_handler_format():
 def test_broadcast_redacts_sensitive_data():
     """v23 S-1：WS 广播必须脱敏——含密码的 redis URL 不外泄（源头 + 广播双保险）。"""
     import asyncio
+
     from api import log_ws
 
     received: list[dict] = []
@@ -92,6 +93,7 @@ def test_broadcast_redacts_sensitive_data():
 def test_broadcast_redacts_api_key_simple():
     """v23 S-1：api_key= 明文参数脱敏。"""
     import asyncio
+
     from api import log_ws
 
     received: list[dict] = []
@@ -131,3 +133,47 @@ def test_redact_utility_covers_redis_and_webhook():
     )
     # 普通消息不受影响
     assert _redact("normal message no secret") == "normal message no secret"
+
+
+def test_log_buffer_handler_emit_structured_fields(monkeypatch):
+    """v23 T4：LogBufferHandler.emit 注入结构化字段（trace_id/req_id/attrs）+ 脱敏。"""
+    import logging
+
+    from api.log_buffer import LogBufferHandler
+
+    class _Ctx:
+        def effective_trace_id(self):
+            return "trace-abc"
+        request_id = "req-1"
+
+    monkeypatch.setattr("api.context.get_current_context", lambda: _Ctx())
+    h = LogBufferHandler(maxlen=10)
+    rec = logging.LogRecord("t", logging.INFO, "t.py", 1, "msg api_key=SECRETKEY123", None, None)
+    rec.attr_custom = "hello"
+    h.emit(rec)
+    snap = h.snapshot(1)
+    assert len(snap) == 1
+    entry = snap[0]
+    assert entry["trace_id"] == "trace-abc"
+    assert entry["req_id"] == "req-1"
+    assert entry["attrs"].get("custom") == "hello"
+    # 脱敏（S-1）
+    assert "SECRETKEY123" not in entry["message"]
+
+
+def test_log_buffer_filter_by_trace_id(monkeypatch):
+    """v23 T4：按 trace_id 过滤日志（任务全链路串联）。"""
+    import logging
+
+    from api.log_buffer import LogBufferHandler
+
+    monkeypatch.setattr(
+        "api.context.get_current_context",
+        lambda: type("_Ctx", (), {"effective_trace_id": lambda self: "t1", "request_id": "r"})(),
+    )
+    h = LogBufferHandler(maxlen=20)
+    for i in range(4):
+        rec = logging.LogRecord("t", logging.INFO, "t.py", 1, f"msg{i}", None, None)
+        h.emit(rec)
+    matched = h.filter_by_trace_id("t1")
+    assert [e["message"] for e in matched] == ["msg0", "msg1", "msg2", "msg3"]

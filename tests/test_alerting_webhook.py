@@ -138,3 +138,72 @@ def test_evaluate_no_webhook_when_unconfigured(monkeypatch):
     assert len(result) == 1
     # 无异常且正常返回即可（未配置时不会走到 create_task 分支）
     assert result[0]["name"] == "t"
+
+
+# ── v23 S-1 防穿透补测：_send_webhook 成功/非 2xx/异常 三路径（覆盖率缺口 T4）──
+
+
+@pytest.mark.asyncio
+async def test_send_webhook_success_logs_redacted_url(monkeypatch, caplog):
+    """v23 S-1：webhook 外发成功 → 日志只记脱敏 host:path（URL 含签名不外泄）。"""
+    from api.alerting import _send_webhook
+
+    captured = {}
+
+    class _FakeResp:
+        status_code = 200
+
+    async def _fake_post(self, url, json=None):
+        captured["url"] = url
+        return _FakeResp()
+
+    monkeypatch.setattr("httpx.AsyncClient.post", _fake_post)
+    import logging
+
+    caplog.set_level(logging.INFO, logger="imagefree_api.alerting")
+    entries = [{"name": "cpu_high", "severity": "warning", "message": "cpu>90%", "timestamp": "1790000000"}]
+    await _send_webhook(entries, "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=SECRET-TOKEN-xyz")
+    assert captured.get("url")  # 确实外发
+    # v23.1 T6-F3（独立审查）：断言**实际日志输出**为脱敏 host:path（S-1 声明证据），
+    # 而非只测 _safe_webhook_url 纯函数——防止 log.info 误记全 URL 时测试仍通过。
+    assert any("webhook 已外发至" in rec.message for rec in caplog.records), "应记录外发成功日志"
+    leaked = any("SECRET-TOKEN-xyz" in rec.message for rec in caplog.records)
+    assert not leaked, "日志不得包含 webhook 签名 token（S-1 脱敏失效）"
+
+
+@pytest.mark.asyncio
+async def test_send_webhook_non2xx_warns(monkeypatch):
+    """v23 S-1 边界：webhook 返回 500 → 仅告警不抛（主流程不受影响）。"""
+    from api.alerting import _send_webhook
+
+    class _FakeResp:
+        status_code = 500
+
+    async def _fake_post(self, url, json=None):
+        return _FakeResp()
+
+    monkeypatch.setattr("httpx.AsyncClient.post", _fake_post)
+    await _send_webhook([], "https://example.com/hook")  # 不应抛
+
+
+@pytest.mark.asyncio
+async def test_send_webhook_exception_swallowed(monkeypatch):
+    """v23 S-1 边界：外发异常（连接拒绝）→ 吞掉只记日志。"""
+    from api.alerting import _send_webhook
+
+    async def _fake_post(self, url, json=None):
+        raise ConnectionError("boom")
+
+    monkeypatch.setattr("httpx.AsyncClient.post", _fake_post)
+    await _send_webhook([], "https://example.com/hook")  # 不抛
+
+
+def test_safe_webhook_url_variants():
+    """v23 S-1：_safe_webhook_url 对空/无 query/带 token 三态处理。"""
+    from api.alerting import _safe_webhook_url
+
+    assert _safe_webhook_url("") == "<webhook>"
+    assert _safe_webhook_url("https://oapi.dingtalk.com/robot/send?access_token=abc123") == \
+        "https://oapi.dingtalk.com/robot/send"
+    assert _safe_webhook_url("https://hooks.slack.com/services/T00/B00/xxx") == \
+        "https://hooks.slack.com/services/T00/B00/xxx"
