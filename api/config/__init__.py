@@ -725,15 +725,15 @@ def mock_upstream() -> bool:
 
 MOCK_UPSTREAM = mock_upstream()
 
-# ── OpenTelemetry（IF_OTEL_*）───────────────────
-OTEL_ENABLED = os.getenv("IF_OTEL_ENABLED", "0").strip().lower() in {"1", "true", "yes", "on"}
-OTEL_SERVICE_NAME = os.getenv("IF_OTEL_SERVICE_NAME", "imagefree-api")
-OTEL_EXPORTER_OTLP_ENDPOINT = os.getenv("IF_OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317")
-OTEL_CONSOLE_EXPORTER = os.getenv("IF_OTEL_CONSOLE_EXPORTER", "0").strip().lower() in {"1", "true", "yes", "on"}
-# P3-2: tail-based 采样策略 —— 错误请求（5xx/异常）100% 采样，正常请求按比例采样。
-# 默认 sample_rate=0.1（10%），error_sample_rate=1.0（100%）。生产建议调低 sample_rate 到 0.05。
-OTEL_SAMPLE_RATE = float(os.getenv("IF_OTEL_SAMPLE_RATE", "0.1"))
-OTEL_ERROR_SAMPLE_RATE = float(os.getenv("IF_OTEL_ERROR_SAMPLE_RATE", "1.0"))
+# ── OpenTelemetry（P2-3 拆到 .otlp，re-export 保持向后兼容）──
+from .otlp import (  # noqa: F401
+    OTEL_CONSOLE_EXPORTER,
+    OTEL_ENABLED,
+    OTEL_ERROR_SAMPLE_RATE,
+    OTEL_EXPORTER_OTLP_ENDPOINT,
+    OTEL_SAMPLE_RATE,
+    OTEL_SERVICE_NAME,
+)
 
 # DB
 STATS_FILE = settings.stats_file

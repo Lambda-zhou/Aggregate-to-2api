@@ -483,6 +483,7 @@ export function Gallery({ limit = 20, password, onGalleryFail }: {
                       src={item.image_url}
                       alt={item.prompt}
                       loading="lazy"
+                      decoding="async"
                       onError={() => void handleImgError(item.image_url || item.prompt)}
                     />
                   )}

@@ -62,7 +62,8 @@
       "description": "多提供商 AI 图像生成网关，聚合多家上游 AI 服务，统一 OpenAI 风格 API。自动逆向号池、代理池轮换、高并发异步队列、自动过 Cloudflare Turnstile。",
       "author": { "@type": "Person", "name": "听风", "url": "https://github.com/lza6" },
       "offers": { "@type": "Offer", "price": "0", "priceCurrency": "CNY" },
-      "softwareVersion": "15.1.1",
+      <!-- ⚠ softwareVersion 须与 pyproject/api.main 全链一致（v22 起 sync_version.py 统一，勿手改漂移） -->
+      "softwareVersion": "22.0.0",
       "featureList": [
         "文生图 (txt2img)",
         "图生图 (img2img)",
@@ -71,7 +72,9 @@
         "Anthropic 兼容 /v1/messages",
         "SSE 每任务事件流",
         "MAB-EWMA 自适应路由",
-        "多提供商聚合"
+        "多提供商聚合",
+        "AI 智能体 DAG 编排",
+        "PWA 安装到主屏幕"
       ]
     }
     </script>
