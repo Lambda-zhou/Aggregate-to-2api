@@ -111,3 +111,17 @@ T10 ──► T11（独立审查）──► T12（报告）──► T13（沉�
 | N6 部署原生化 | 主控 | litestream/prometheus/grafana systemd 原生资产 + 启用 SOP | ✅ 完成（deploy/systemd/ 6 资产 + SOP/restore 同步） |
 | N7 独立审查 | critic | 六维复验（需求/逻辑/边界/质量/覆盖/运行） | 🔄 启动中 |
 | N8 收尾 | 主控 | 版本基线决策 + HTML 报告 + 测验 + 提交/Release + skills 沉淀 | ⏳ 待 N7 |
+
+## v23.1 极限施压 + 防穿透（Spec-Kit 011，2026-09-28 主控）
+
+> 依据：`.specify/specs/011-stress-penetration-testing/`（spec/plan）｜ 来源：010 US2 承诺未兑现 + 用户点名「极限施压与防穿透」。
+
+| 任务 | 内容 | 状态 |
+|---|---|---|
+| T1 | scripts/probe_stress.py 并发阶梯压测读路径 | ✅ 完成（200 并发 0 错误率；stress-v23.json + 报告） |
+| T2 | 防穿透注入断言（队列满/限流/SSE/畸形 body） | ✅ 完成（畸形/超长/5MB→422；限流 429+Retry-After；auto-block 403 实测） |
+| T3 | 全量覆盖率实测 → 缺口报告 | ✅ 完成（v23 核心模块基线 61.5%，log_buffer 43.2%/auth 65.9%/alerting 62.1%） |
+| T4 | 低覆盖关键模块补测 | ✅ 完成（auth 76.1%/alerting 95.4%/log_buffer 88.9%；**抓出 attrs 前缀错剥 bug 已修**） |
+| T5 | 压测报告 docs/research/stress-penetration-v23.md | ✅ 完成（含双口径延迟 + 生产核对项） |
+| T6 | 独立审查 + 复验 | 🔄 首轮 NEEDS_CHANGES（F1 P1 + F2-F8 P2/P3）→ 全部修复，复验中 |
+| T7 | 版本/文档/报告收尾 + Release | ⏳ 待 T6 APPROVE |

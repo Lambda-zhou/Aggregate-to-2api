@@ -595,3 +595,14 @@
 | 2026-09-28 | **后端回归**：db（batch/indexes/migrations/pool）、gallery、retention、log_ws、reconnect、task_cancel、redis、alerting、auth_ip、chat_auth 相关文件 | 144 passed | 含 v23 新用例（永久失败丢弃/@ 密码/白名单/部分失败保留） |
 | 2026-09-28 | **前端回归**：GalleryAlbum 7（含 F1 部分失败）+ api 79（含 F2 换算）+ Tasks 4（MemoryRouter 适配） | 90 passed + tsc 0 | 前端 build 29s（index gzip 84.05kB） |
 | 2026-09-28 | 版本门禁基线 | 4 passed | 全链 22.0.0（v23 bump 23.0.0 后进行全链复验） |
+
+## v23.1 记录（2026-09-28 · 极限施压 + 防穿透批）
+
+| 日期 | 范围 | 结果 | 备注 |
+|------|------|------|------|
+| 2026-09-28 | **T1 极限施压**：读路径 5 端点 × 并发 1→200，探针 scripts/probe_stress.py（新） | 200 并发 0 错误率 0 5xx 0 429 不崩 | stress-v23.json；延迟双口径（本机排队噪声） |
+| 2026-09-28 | **T2 防穿透**：畸形/超长/5MB body/限流/auto-block | 全 4xx/429 不崩；限流 10→5×429+Retry-After:60；task-failure-burst 403 实测 | S-2 生产核对项实证 |
+| 2026-09-28 | **T3 覆盖率猎杀**：v23 修复模块基线 61.5%（log_buffer 43.2/auth 65.9/alerting 62.1） | <70 基线暴露 | cov-v23.json；全量由 CI 门禁把关 |
+| 2026-09-28 | **T4 补测**：auth 429 触发/alerting 三路径/log_buffer emit | auth 76.1 / alerting 95.4 / log_buffer 88.9；**抓出 attrs 键错剥 bug 已修** | 新增 10 用例全绿 |
+| 2026-09-28 | **T6 独立审查**：F1（429 误判崩溃 P1）+F2-F8 | NEEDS_CHANGES → 全部修复 → 复验 APPROVE | review-v231.md；36 补测+编译+ruff 0 |
+| 2026-09-28 | 版本全链 23.0.0→23.1.0 + landing dist 重建 | sync --check 一致；版本门禁 10 passed | 169 关键回归全绿 |

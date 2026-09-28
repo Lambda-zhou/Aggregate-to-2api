@@ -150,8 +150,41 @@
     <div id="res" class="res"></div>
   </div>
 
+  <h2>⑥ v23.1 增补：极限施压 + 防穿透 + 覆盖率猎杀（Spec-Kit 011）</h2>
+  <div class="card">
+    <p><b>触发</b>：`.specify/specs/010` 的 US2「高并发极限施压探针」只有 spec 无 plan/tasks——承诺未兑现；用户点名「极限施压与防穿透」「覆盖率看着 80% 仍出 bug」。</p>
+    <table>
+      <tr><th>节点</th><th>结果</th></tr>
+      <tr><td><b>T1 极限施压</b></td><td>读路径（healthz/gallery/stats/providers/models）<b>200 并发 0 错误率、0 5xx、0 429、进程不崩</b>；延迟 16-40ms（串行）→ 100-600ms（并发，本机 HTTP 排队噪声双口径标注）</td></tr>
+      <tr><td><b>T2 防穿透</b></td><td>畸形 JSON/超长 prompt(200KB)/5MB body 全 <b>422</b> 不崩；生图限流 10→5 个 <b>429 + Retry-After:60</b>；<b>auto-block 403 实测</b>（task-failure-burst 机制真实生效 = S-2 生产核对项实证）</td></tr>
+      <tr><td><b>T3 覆盖率猎杀</b></td><td>v23 修复模块基线仅 <b>61.5%</b>（log_buffer 43.2% / auth 65.9% / alerting 62.1%）——"看着 80% 仍出 bug"实证</td></tr>
+      <tr><td><b>T4 补测</b></td><td>auth→<b>76.1%</b> / alerting→<b>95.4%</b> / log_buffer→<b>88.9%</b>；<b>顺带抓出真实 bug：`attr_custom` 被 `k[6:]` 错剥成 `ustom`，已修</b></td></tr>
+      <tr><td><b>T6 独立审查</b></td><td>首轮 NEEDS_CHANGES（F1 429 误判崩溃 P1 + F2-F8）→ 全部修复 → 复验 <b>APPROVE</b>（36 补测 + 编译 + ruff 0 error）</td></tr>
+    </table>
+    <p><b>根因模式</b>：工具本身也需防穿透——压测探针把 429（优雅降级）误判为崩溃阈值，反过来会把"限流保护生效"报成"服务挂了"。独立审查抓出并修复（F1）。</p>
+  </div>
+  <div class="card quiz">
+    <div class="q">
+      <b>Q8. 读路径极限压测（200 并发）的真实结论是什么？</b>
+      <label><input type="radio" name="q8" value="a">崩溃了，大量 5xx</label>
+      <label><input type="radio" name="q8" value="b">0 错误率、0 5xx、0 429、进程不崩；延迟升高主要为本机 HTTP 排队噪声（双口径披露）</label>
+      <label><input type="radio" name="q8" value="c">200 并发下延迟反而降低</label>
+    </div>
+    <div class="q">
+      <b>Q9. 覆盖率猎杀（T3/T4）发现了什么？</b>
+      <label><input type="radio" name="q9" value="a">覆盖率本来就全达标，无事发生</label>
+      <label><input type="radio" name="q9" value="b">v23 修复模块基线仅 61.5%——log_buffer 43.2%；补测后 auth/alerting/log_buffer 全达标，且<b>补测抓出真实 bug</b>（attrs 键名错剥 ustom）</label>
+      <label><input type="radio" name="q9" value="c">覆盖率是 CI 自动管的，不需要看</label>
+    </div>
+    <div class="q">
+      <b>Q10. T6 独立审查抓出的压测探针缺陷（F1）是什么？</b>
+      <label><input type="radio" name="q10" value="a">探针崩溃检测把 429（限流优雅降级）误判为崩溃阈值，会把"限流保护生效"报成"服务挂了"——已修（error_rate 只含 5xx+客户端异常）</label>
+      <label><input type="radio" name="q10" value="b">探针没测对端点</label>
+      <label><input type="radio" name="q10" value="c">探针完全没问题</label>
+    </div>
+  </div>
   <script>
-  const ANSWERS = { q1:'b', q2:'b', q3:'b', q4:'b', q5:'b', q6:'b', q7:'b' };
+  const ANSWERS = { q1:'b', q2:'b', q3:'b', q4:'b', q5:'b', q6:'b', q7:'b', q8:'b', q9:'b', q10:'a' };
   function score() {
     let ok=0, n=Object.keys(ANSWERS).length;
     for (const k of Object.keys(ANSWERS)) {
@@ -160,7 +193,7 @@
     }
     const pct = Math.round(ok/n*100);
     const el = document.getElementById('res');
-    el.textContent = `得分 ${ok}/${n}（${pct}%）${pct>=80 ? ' — 通过 ✅，你对 v23 变更掌握到位。' : ' — 未达标，请重读报告上方小节。'}`;
+    el.textContent = `得分 ${ok}/${n}（${pct}%）${pct>=80 ? ' — 通过 ✅，你对 v23/v23.1 变更掌握到位。' : ' — 未达标，请重读报告上方小节。'}`;
     el.className = 'res ' + (pct>=80 ? 'pass':'fail');
   }
   </script>

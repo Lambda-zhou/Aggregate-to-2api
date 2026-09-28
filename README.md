@@ -6,7 +6,7 @@
   <a href="#"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
   <a href="#"><img src="https://img.shields.io/badge/python-3.11+-brightgreen.svg" alt="Python"></a>
   <a href="#"><img src="https://img.shields.io/badge/docker-compose-orange.svg" alt="Docker"></a>
-  <a href="#"><img src="https://img.shields.io/badge/version-23.0.0-brightgreen.svg" alt="Version"></a>
+  <a href="#"><img src="https://img.shields.io/badge/version-23.1.0-brightgreen.svg" alt="Version"></a>
 </p>
 
 ---
@@ -294,6 +294,15 @@ node resp-audit.cjs  # 响应式 4 断点审计（375/768/1024/1440，截图归�
 - **部署原生化**：线上 systemd（无 Docker）→ `deploy/systemd/` 新增 litestream/prometheus/node_exporter/grafana 独立 unit + 一键安装脚本 + 生产配置；SOP/litestream-restore/README 同步（部署见 `docs/SOP.md`）。
 - **solver 联邦实测**：`scripts/probe_federation.py` 双节点 mock 分流 10/10，均时与 delay 3× 吻合（承接分布为硬结论）。
 - 审计报告：`docs/research/*-v23.md`（7 份）+ 终局报告/测验 `docs/v23-terminal-report.html`。
+
+## ✨ v23.1.0 极限施压 + 防穿透（2026-09-28）
+
+`.specify/specs/010` US2 承诺未兑现 → 本轮真补（Spec-Kit 011）：
+
+- **极限施压**：`scripts/probe_stress.py` 读路径 5 端点 × 200 并发 → **0 错误率 0 5xx 0 429 不崩**（报告 `docs/research/stress-penetration-v23.md`）。
+- **防穿透**：畸形/超长(200KB)/5MB body 全 422；限流 10→5×429 + Retry-After；auto-block 403 实测（S-2 生产核对项实证）。
+- **覆盖率猎杀**：v23 修复模块基线仅 61.5% → 补测后 auth 76.1 / alerting 95.4 / log_buffer 88.9，**顺带修复真实 bug**（`LogBufferHandler` attrs 键名错剥 `ustom`→`custom`）。
+- 独立审查（T6）F1 探针 429 误判崩溃 → 修复 → **APPROVE**。
 
 ---
 
