@@ -126,3 +126,18 @@
 ---
 
 *更新日期：2026-09-27*
+## v23 终局闭环批（2026-09-28）
+
+- `deploy/systemd/` — systemd 原生部署资产（litestream.service / observability.service / install_observability.sh / litestream.yml.prod / prometheus.yml.prod / README.md）——线上无 Docker 的 v23 修正
+- `scripts/probe_federation.py` — cf_solver 双节点联邦真实分流验证探针（mock 双节点 + solver_guard）
+- `docs/research/*-v23.md` — v23 审计报告（contract-audit / sql-audit / security-audit / solver-federation / frontend-blindspot / review）
+- `api/db/migrations.py` — v23 索引补齐（status_dur/day/month/model/duration，IF NOT EXISTS 幂等）
+- `api/db/core.py` — `_flush_buffer` 失败回写重试（N2 P1-L1 批量写非原子修正）
+- `api/log_ws.py` + `api/log_buffer.py` — S-1 日志 WS 广播脱敏（复用 _redact + redis:// 密码模式）
+- `api/storage/redis_adapter.py` + `api/alerting.py` — 源头脱敏（_safe_redis_host / _safe_webhook_url）
+- `api/auth.py` — S-3 聊天/DAG 限流受信代理解析（反代后不塌缩单桶）
+- `api/routes/tasks.py` — S-4 cancel 补 guard_chat_request 限流
+
+---
+
+*更新日期：2026-09-28*

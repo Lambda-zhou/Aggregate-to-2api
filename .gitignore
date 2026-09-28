@@ -42,6 +42,8 @@ api.tar
 
 # Local probe scripts (often contain real credentials; never commit)
 probe_*.py
+# N5 交付物：双节点联邦验证探针，纯本地 mock、无任何凭据，允许入库
+!scripts/probe_federation.py
 
 # Deploy artifacts
 deploy/cf_solver/debug_logs/
@@ -142,3 +144,19 @@ desktop/*.zip
 
 # scripts/ops/ 全部忽略（含生产 SSH 明文凭证的运维脚本，v22 P0-4 移至此处集中管理）
 scripts/ops/
+
+# ── v23 收尾增补：工具配置/历史归档/审计产物（固化排除，防 git status 噪声与误提交）──
+# 第三方工具配置（codex/agents 局部配置，用户本机工作区）
+.agents/
+.codex/
+# 历史已闭环指南归档（磁盘保留备查，不入库；新指南在 计划书/）
+docs/archived/
+# 参考项目扫描产物（研究资料）
+docs/research/ref-scan/
+docs/research/ref-scan-v2/
+# 生产验证截图（审计证据，磁盘保留）
+docs/verification-artifacts/
+# 本地 dev 代理（vite → 生产 HTTPS 转发）
+landing/dev-proxy.mjs
+# 审计/验证临时探针脚本（避免脏提交）
+/_probe_*.py

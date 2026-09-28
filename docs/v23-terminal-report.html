@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>v23 终局闭环报告 — 听风AI</title>
+<style>
+  :root { --bg:#0a0e1a; --card:#111827; --line:#1f2937; --text:#e5e7eb; --muted:#94a3b8; --brand:#60a5fa; --ok:#34d399; --warn:#fbbf24; --err:#f87171; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; line-height:1.7; }
+  .wrap { max-width:920px; margin:0 auto; padding:32px 20px 80px; }
+  h1 { font-size:28px; margin:8px 0 4px; background:linear-gradient(120deg,#fff,#60a5fa 60%,#f472b6); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+  .sub { color:var(--muted); font-size:14px; margin-bottom:28px; }
+  h2 { font-size:19px; border-left:4px solid var(--brand); padding-left:10px; margin:36px 0 12px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px 20px; margin:12px 0; }
+  table { width:100%; border-collapse:collapse; margin:10px 0; font-size:13.5px; }
+  th,td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-weight:600; font-size:12.5px; }
+  .tag { display:inline-block; padding:1px 8px; border-radius:999px; font-size:12px; font-weight:600; }
+  .ok { background:rgba(52,211,153,.15); color:var(--ok); }
+  .warn { background:rgba(251,191,36,.15); color:var(--warn); }
+  .err { background:rgba(248,113,113,.15); color:var(--err); }
+  code { background:#1e293b; padding:1px 6px; border-radius:4px; font-size:12.5px; }
+  pre { background:#0f172a; border:1px solid var(--line); border-radius:8px; padding:12px; overflow-x:auto; font-size:12.5px; }
+  .quiz { margin-top:40px; }
+  .quiz .q { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px 20px; margin:14px 0; }
+  .quiz label { display:block; margin:6px 0 6px 24px; cursor:pointer; }
+  .quiz input { margin-right:8px; }
+  details { margin:6px 0; }
+  summary { cursor:pointer; color:var(--brand); }
+  .btn { display:inline-block; background:linear-gradient(135deg,#60a5fa,#93c5fd); color:#fff; border:none; border-radius:8px; padding:10px 22px; font-size:14px; font-weight:600; cursor:pointer; margin-top:8px; }
+  .res { margin-top:12px; padding:12px; border-radius:8px; font-weight:700; display:none; }
+  .res.pass { background:rgba(52,211,153,.12); color:var(--ok); display:block; }
+  .res.fail { background:rgba(248,113,113,.12); color:var(--err); display:block; }
+  .pill { display:inline-block; background:#1e293b; border:1px solid var(--line); border-radius:999px; padding:2px 12px; font-size:12px; color:var(--muted); margin-right:8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>v23 终局闭环报告</h1>
+  <div class="sub">听风AI imagefree-2ai · 2026-09-28 · 基线 v22.1.5 → v23.0.0 · 7 审计节点 N1-N7 + 收尾 N8</div>
+
+  <span class="pill">生产：systemd 原生（无 Docker）</span>
+  <span class="pill">版本全链 23.0.0</span>
+  <span class="pill">后端 120+ 用例绿 · 前端 120+ 用例绿</span>
+  <span class="pill">openapi E2E 版本 23.0.0 实测</span>
+
+  <h2>① 上下文 / 为什么做 v23</h2>
+  <div class="card">
+    <p>v22.1.5 基线已把版本门禁、i18n、PWA、SSE 连接保护、移动端冒烟等工程项闭环。v23 面对的是<b>三个此前从未被正视的真实缺口</b>：</p>
+    <ul>
+      <li><b>「线上无 Docker」被 v22 指南忽略</b>：v22 的 litestream/观察栈/solver 双节点全按 docker compose 写，但生产 20.204.27.154 是 systemd 原生直跑——文档路径不可能执行，RPO 24h 兜底名存实亡；</li>
+      <li><b>版本基线脱节</b>：代码全链 22.0.0，Release 已发到 v22.1.5——每个 patch 只 tag 版本未 bump 全链；</li>
+      <li><b>盲点未扫</b>：从未启动过"最挑剔用户/最倒霉调用方/最狠反对者"视角的纵深审计——SQL 慢查询、日志脱敏、鉴权边界、前端假加载全是空白。</li>
+    </ul>
+    <p>本轮 = 一次真正的<b>终局闭环总审计</b>：7 个并行/串行子代理节点（契约 50 端点 / SQL 27 文件 / 安全 / 前端 13 页 / solver 实测 / 部署 / 独立审查）全链路伸展开，发现问题 → 修复 → 复验 → 版本发布。</p>
+  </div>
+
+  <h2>② 直觉 / 七大节点发现了什么</h2>
+  <div class="card">
+    <table>
+      <tr><th>节点</th><th>范围</th><th>关键发现（修复前）</th></tr>
+      <tr><td><code>N1</code> 契约</td><td>50 端点 vs 96 路由</td><td>画廊软删缺管理 Key（删除绑定 401/403）；聊天 429 提示字段秒/分错配（永不显示）</td></tr>
+      <tr><td><code>N2</code> SQL</td><td>27 文件 0 注入</td><td>批量写"合并 commit"实测<b>非原子</b>（autocommit）；stats/gallery/day-month 缺索引全表扫；gallery NOT IN 弃索引</td></tr>
+      <tr><td><code>N3</code> 安全</td><td>鉴权/脱敏/凭证</td><td><b>/v1/logs/ws 匿名广播未脱敏 → redis 密码/webhook 签名实时泄露</b>；cancel 零鉴权（可删他人任务）；聊天限流反代后单桶塌缩</td></tr>
+      <tr><td><code>N4</code> 前端</td><td>13 页三态核查</td><td>Costs 预算预测无管理 Key 时<b>永久骨架屏</b>（401 被吞）；封禁无确认；Tasks 空态硬编码跳转 404</td></tr>
+      <tr><td><code>N5</code> solver</td><td>mock 双节点实测</td><td>联邦分流 10/10 均匀（非"只配不打"）；均时 0.18/0.27s 与 delay 3× 吻合</td></tr>
+      <tr><td><code>N6</code> 部署</td><td>systemd 原生化</td><td>v22 指南 compose 路径在生产不可执行 → 需 litestream/prometheus/grafana 原生 unit</td></tr>
+      <tr><td><code>N7</code> 审查</td><td>六维对抗复验</td><td>flush 永久失败会头部阻塞+内存无界增长；systemd 单文件 3 unit 只认最后一个 → 2 P1 + 5 P2 需返工（已修）</td></tr>
+    </table>
+    <p><b>根本模式</b>：v22 的"工程深化"把工具/测试做齐了，但<b>从没问过"生产真能跑吗、攻击者真能打进来吗"</b>——v23 就是把这层"自信但未验证"全部戳穿并补实。</p>
+  </div>
+
+  <h2>③ 变更 / 实际做了什么</h2>
+  <div class="card">
+    <table>
+      <tr><th>域</th><th>修复</th><th>证据</th></tr>
+      <tr><td><b>安全 S-1</b> 日志脱敏</td><td>log_ws 广播复用 <code>_redact</code>；redis/alerting 源头只记 host:path；<code>_redact</code> 补 redis:// 密码与含 @ 密码模式</td><td>test_log_ws 8 用例绿</td></tr>
+      <tr><td><b>安全 S-3</b> 限流</td><td>chat/DAG 限流改用受信代理解析真实客户端 IP（反代后不塌缩单桶）</td><td>auth 152 用例绿</td></tr>
+      <tr><td><b>安全 S-4</b> cancel</td><td>取消任务补 <code>guard_chat_request</code> per-IP 限流（防批量恶意取消）</td><td>test_task_cancel 13 绿；E2E 404</td></tr>
+      <tr><td><b>契约 F1</b> 画廊删</td><td>前端 <code>softDeleteGalleryItem</code> 合并管理 Key；删除失败项不再乐观移除，保留+提示</td><td>GalleryAlbum 7 绿；E2E 403</td></tr>
+      <tr><td><b>契约 F2</b> 429</td><td>chat-utils 读后端 <code>retry_after_seconds</code> 换算分钟（兼容旧 minutes）</td><td>api 79 绿</td></tr>
+      <tr><td><b>SQL</b> 索引</td><td>5 个幂等索引（status_dur/day/month/model/duration）+ gallery 正向白名单 + flush 失败回写带重试上限</td><td>db 60 绿</td></tr>
+      <tr><td><b>前端</b> Costs</td><td>预算预测读 error，401 降级"需管理 Key"+重试（不再永久骨架屏）</td><td>tsc 0 + build 绿</td></tr>
+      <tr><td><b>前端</b> Security/Tasks</td><td>封禁补二次确认；空态 CTA 改 react-router navigate</td><td>Tasks 4 绿（MemoryRouter）</td></tr>
+      <tr><td><b>部署 N6</b></td><td>7 件 systemd 原生产物：litestream/observability unit、prod yml、install 脚本；SOP/restore/README 同步 + 过时警示</td><td>bash -n + yaml 解析</td></tr>
+      <tr><td><b>版本</b></td><td>全链 22.0.0 → <b>23.0.0</b>（9+1 文件，sync_version 纳入 landing/index.html）；双 dist 重建</td><td>sync --check 一致；E2E openapi 23.0.0</td></tr>
+    </table>
+  </div>
+
+  <h2>④ 验证 / 如何证明是真的</h2>
+  <div class="card">
+    <table>
+      <tr><th>层</th><th>命令</th><th>结果</th></tr>
+      <tr><td>后端单元</td><td><code>pytest db/gallery/log_ws/cancel/redis/alerting/auth 批次</code></td><td class="tag ok">120+ passed</td></tr>
+      <tr><td>前端</td><td><code>vitest GalleryAlbum/api/Tasks + tsc</code></td><td class="tag ok">120+ passed · tsc 0</td></tr>
+      <tr><td>构建</td><td><code>frontend/landing npm run build</code></td><td class="tag ok">均成功（index gzip 84KB）</td></tr>
+      <tr><td>真实 E2E</td><td><code>mock_cfsolver + uvicorn</code> 冒烟</td><td class="tag ok">livez/healthz ok · openapi 23.0.0 · models/stats/metrics(70) 全 200</td></tr>
+      <tr><td>鉴权验证</td><td>无 Key 画廊删除 → 403；cancel → 404</td><td class="tag ok">S-4/F1 真实生效</td></tr>
+      <tr><td>联邦实测</td><td><code>probe_federation.py</code> 双节点 mock</td><td class="tag ok">10/10 分流 · 0 熔断</td></tr>
+      <tr><td>独立审查</td><td>N7 六维复验</td><td class="tag ok">APPROVE（2 P1+5 P2 已返工）</td></tr>
+    </table>
+  </div>
+
+  <h2>⑤ 变更测验（请逐题作答）</h2>
+  <div class="card quiz">
+    <div class="q">
+      <b>Q1. 生产服务器的部署形态是什么？v23 做了哪类部署资产修正？</b>
+      <label><input type="radio" name="q1" value="a">Docker Compose；补了 compose 升级版资产</label>
+      <label><input type="radio" name="q1" value="b">systemd 原生（无 Docker）；补齐了 litestream/prometheus/grafana 原生 unit</label>
+      <label><input type="radio" name="q1" value="c">Kubernetes；补了 Helm chart</label>
+    </div>
+    <div class="q">
+      <b>Q2. N3 安全审计发现的最关键 P1 是什么？</b>
+      <label><input type="radio" name="q2" value="a">SQL 注入漏洞可拖库</label>
+      <label><input type="radio" name="q2" value="b">/v1/logs/ws 匿名广播未脱敏 → redis 密码/webhook 签名实时泄露给任意 WS 客户端</label>
+      <label><input type="radio" name="q2" value="c">CORS 配置错误导致跨域崩溃</label>
+    </div>
+    <div class="q">
+      <b>Q3. 批量写"0.2s 窗口合并 commit"的真实情况是什么？</b>
+      <label><input type="radio" name="q3" value="a">确实是单事务原子提交（测试实证）</label>
+      <label><input type="radio" name="q3" value="b">isolation_level=None 下每条 execute 立即 autocommit，末尾 commit 是 no-op，非原子；已补失败回写+重试上限</label>
+      <label><input type="radio" name="q3" value="c">批量写根本不用 commit</label>
+    </div>
+    <div class="q">
+      <b>Q4. F1（画廊软删）修复的核心是什么？</b>
+      <label><input type="radio" name="q4" value="a">把画廊删除改为免鉴权（方便站长）</label>
+      <label><input type="radio" name="q4" value="b">前端软删请求合并管理 Key（后端本来就强制 check_admin_key），并让删除失败项保留可见而非乐观移除</label>
+      <label><input type="radio" name="q4" value="c">删除改为物理删文件</label>
+    </div>
+    <div class="q">
+      <b>Q5. v23 的版本基线决策是什么？</b>
+      <label><input type="radio" name="q5" value="a">保持 22.0.0 不动</label>
+      <label><input type="radio" name="q5" value="b">代码全链从 22.0.0 bump 到 23.0.0（消化 v22.1.x 五个未 bump 的 patch），sync_version 纳入 landing/index.html</label>
+      <label><input type="radio" name="q5" value="c">回退到 v21</label>
+    </div>
+    <div class="q">
+      <b>Q6. N7 独立审查发现后，flush 失败处理最终如何收敛？</b>
+      <label><input type="radio" name="q6" value="a">失败条无限重试直到成功</label>
+      <label><input type="radio" name="q6" value="b">失败条 attempts 计数，达上限（默认 5）视为永久失败丢弃并计 dead-letter + 告警，后续条继续回写</label>
+      <label><input type="radio" name="q6" value="c">失败直接丢弃不处理</label>
+    </div>
+    <div class="q">
+      <b>Q7. 哪些项属于"外部受限 / 待生产 apply"，v23 未假装完成？</b>
+      <label><input type="radio" name="q7" value="a">全部完成，无外部受限</label>
+      <label><input type="radio" name="q7" value="b">R2 真凭证、生产 systemd apply、真实 cf_solver 双节点、服务商侧凭证轮换（脚本 ops 已移+gitignore）——已文档化启用路径，标"待生产/L2 授权"</label>
+      <label><input type="radio" name="q7" value="c">这些根本不重要</label>
+    </div>
+    <button class="btn" onclick="score()">交卷评分</button>
+    <div id="res" class="res"></div>
+  </div>
+
+  <script>
+  const ANSWERS = { q1:'b', q2:'b', q3:'b', q4:'b', q5:'b', q6:'b', q7:'b' };
+  function score() {
+    let ok=0, n=Object.keys(ANSWERS).length;
+    for (const k of Object.keys(ANSWERS)) {
+      const sel = document.querySelector(`input[name="${k}"]:checked`);
+      if (sel && sel.value === ANSWERS[k]) ok++;
+    }
+    const pct = Math.round(ok/n*100);
+    const el = document.getElementById('res');
+    el.textContent = `得分 ${ok}/${n}（${pct}%）${pct>=80 ? ' — 通过 ✅，你对 v23 变更掌握到位。' : ' — 未达标，请重读报告上方小节。'}`;
+    el.className = 'res ' + (pct>=80 ? 'pass':'fail');
+  }
+  </script>
+  <div class="sub" style="margin-top:28px">— 结束 — 完整审计报告见 <code>docs/research/*-v23.md</code>（7 份）· 状态追踪 <code>workflow_status.md</code> · 验证留痕 <code>docs/verification-log.md</code></div>
+</div>
+</body>
+</html>

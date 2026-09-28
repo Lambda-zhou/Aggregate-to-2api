@@ -580,3 +580,18 @@
 - `py_compile` api/sse_events/ws_events/lifespan/config + scripts 编译通过
 - frontend build index gzip 84.04kB（<150KB 达标）；landing build 成功 sw v22.0.0
 - 版本门禁 `pytest tests/test_version_consistency.py`：4 passed（全链 22.0.0 一致）
+
+## v23 记录（2026-09-28 · 终局闭环批）
+
+| 日期 | 范围 | 结果 | 备注 |
+|------|------|------|------|
+| 2026-09-28 | **N2 SQL 猎杀**：27 文件 0 注入；慢查询（stats_overview 全表聚合/gallery NOT IN 弃索引/day-month 无索引/model 无索引）+ 批量写"合并 commit"实测非原子（autocommit） | 全绿 | docs/research/sql-audit-v23.md；修复：migrations 幂等索引 ×5 + gallery 正向白名单 + flush 失败回写 |
+| 2026-09-28 | **N3 安全纵深**：0 P0；P1×5（S1 日志 WS 未脱敏 / S2 TRUSTED_PROXIES / S3 限流单桶 / S4 cancel 零鉴权 / S5 DAG 无 Key） | 修复 3 | S1 三层脱敏（log_ws+redis_adapter+alerting）；S3 限流受信代理；S4 cancel 补 guard |
+| 2026-09-28 | **N1 契约审计**：50 端点 44 对齐 0 断裂；F1 画廊删缺 Key（P1）/ F2 聊天 429 字段错配（P1） | 修复 2 | misc.ts adminHeaders + Gallery 失败不乐观移除 + chat-utils 秒→分换算 |
+| 2026-09-28 | **N4 前端盲点**：P1 Costs 永久骨架屏（401 被吞）+ P2×9 | 修复 3 | Costs 降级提示+重试；Security 封禁确认；Tasks useNavigate |
+| 2026-09-28 | **N5 solver 双节点**：分流 10/10 均匀；串行 0.18/0.27s（delay 3× 吻合）；联邦并发 2.1s 含本机排队 | 已验证 | 承接分布硬结论；probe_federation.py + solver-federation-v23.md/.json |
+| 2026-09-28 | **N6 部署原生化**：线上无 Docker → systemd 原生资产（litestream/prometheus/node_exporter/grafana unit + prod yml + install 脚本） | bash -n + yaml 校验 | deploy/systemd/；SOP/litestream-restore/README 同步 |
+| 2026-09-28 | **N7 六维独立审查**：2 P1（flush 永久失败 / systemd 单文件多 unit）+ 5 P2 + 3 P3 → **已全部修复并复验** | NEEDS_CHANGES→复验中 | docs/research/review-v23.md；修复：attempts 隔离 + 3 unit 拆分 + @ 密码脱敏 + 白名单常量源 + 路径统一 |
+| 2026-09-28 | **后端回归**：db（batch/indexes/migrations/pool）、gallery、retention、log_ws、reconnect、task_cancel、redis、alerting、auth_ip、chat_auth 相关文件 | 144 passed | 含 v23 新用例（永久失败丢弃/@ 密码/白名单/部分失败保留） |
+| 2026-09-28 | **前端回归**：GalleryAlbum 7（含 F1 部分失败）+ api 79（含 F2 换算）+ Tasks 4（MemoryRouter 适配） | 90 passed + tsc 0 | 前端 build 29s（index gzip 84.05kB） |
+| 2026-09-28 | 版本门禁基线 | 4 passed | 全链 22.0.0（v23 bump 23.0.0 后进行全链复验） |

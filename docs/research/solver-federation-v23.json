@@ -1,0 +1,140 @@
+{
+  "scenario": "cf_solver 双节点联邦真实分流验证 (mock)",
+  "nodes": [
+    {
+      "url": "http://127.0.0.1:8001",
+      "node_id": "node-1",
+      "delay": 0.05
+    },
+    {
+      "url": "http://127.0.0.1:8002",
+      "node_id": "node-2",
+      "delay": 0.15
+    }
+  ],
+  "summaries": [
+    {
+      "label": "单节点 node-1 (delay 0.05s, 串行)",
+      "total": 20,
+      "success": 20,
+      "failure": 0,
+      "node_counts": {
+        "node-1": 20
+      },
+      "avg_seconds": 0.1781,
+      "solve_window_p50_seconds": 0.1405,
+      "solve_window_min_seconds": 0.047,
+      "min_seconds": 0.11,
+      "max_seconds": 0.219,
+      "node_status": {
+        "http://127.0.0.1:8001": {
+          "status": "ok",
+          "circuit_open": false,
+          "solve_success_total": 20
+        }
+      }
+    },
+    {
+      "label": "单节点 node-2 (delay 0.15s, 串行)",
+      "total": 20,
+      "success": 20,
+      "failure": 0,
+      "node_counts": {
+        "node-2": 20
+      },
+      "avg_seconds": 0.2656,
+      "solve_window_p50_seconds": 0.234,
+      "solve_window_min_seconds": 0.156,
+      "min_seconds": 0.203,
+      "max_seconds": 0.312,
+      "node_status": {
+        "http://127.0.0.1:8002": {
+          "status": "ok",
+          "circuit_open": false,
+          "solve_success_total": 20
+        }
+      }
+    },
+    {
+      "label": "双节点联邦 select_node (并发)",
+      "total": 20,
+      "success": 20,
+      "failure": 0,
+      "node_counts": {
+        "node-2": 10,
+        "node-1": 10
+      },
+      "avg_seconds": 2.1249,
+      "solve_window_p50_seconds": 1.1955,
+      "solve_window_min_seconds": 0.515,
+      "min_seconds": 1.484,
+      "max_seconds": 2.468,
+      "node_status": {
+        "http://127.0.0.1:8001": {
+          "status": "ok",
+          "circuit_open": false,
+          "solve_success_total": 10
+        },
+        "http://127.0.0.1:8002": {
+          "status": "ok",
+          "circuit_open": false,
+          "solve_success_total": 10
+        }
+      }
+    },
+    {
+      "label": "双节点联邦 select_candidates[0] (并发)",
+      "total": 20,
+      "success": 20,
+      "failure": 0,
+      "node_counts": {
+        "node-1": 10,
+        "node-2": 10
+      },
+      "avg_seconds": 2.0866,
+      "solve_window_p50_seconds": 0.4605,
+      "solve_window_min_seconds": 0.187,
+      "min_seconds": 1.609,
+      "max_seconds": 2.578,
+      "node_status": {
+        "http://127.0.0.1:8001": {
+          "status": "ok",
+          "circuit_open": false,
+          "solve_success_total": 10
+        },
+        "http://127.0.0.1:8002": {
+          "status": "ok",
+          "circuit_open": false,
+          "solve_success_total": 10
+        }
+      }
+    },
+    {
+      "label": "双节点联邦 持续压测(least-inflight)",
+      "total": 40,
+      "success": 40,
+      "failure": 0,
+      "node_counts": {
+        "node-2": 20,
+        "node-1": 20
+      },
+      "avg_seconds": 0.8957,
+      "solve_window_p50_seconds": 0.3595,
+      "solve_window_min_seconds": 0.125,
+      "min_seconds": 0.531,
+      "max_seconds": 1.328,
+      "node_status": {
+        "http://127.0.0.1:8001": {
+          "status": "ok",
+          "circuit_open": false,
+          "solve_success_total": 20
+        },
+        "http://127.0.0.1:8002": {
+          "status": "ok",
+          "circuit_open": false,
+          "solve_success_total": 20
+        }
+      }
+    }
+  ]
+}

@@ -94,3 +94,20 @@ T10 ──► T11（独立审查）──► T12（报告）──► T13（沉�
 |---|---|---|
 | A / SSE 心跳参数化 | IF_SSE_HEARTBEAT_INTERVAL 配置 + set_heartbeat_interval()/heartbeat_interval() + ws_events 动态读 + lifespan 装配 + env 模板 + 3 单测 | ✅ 已完成（sse 27 passed + config 绿） |
 | B / 真实 E2E 契约 | mock_cfsolver + uvicorn + e2e_v12.py 全契约 | 🔄 acb242cebcf9f4bbe |
+
+## v23 终局闭环批（2026-09-28 主控代理）
+
+> 基线：v22.1.5（Release 397934843）｜ 代码全链 22.0.0（版本基线脱节 = v23 修复项）
+> 线上事实：20.204.27.154 **systemd 原生部署（无 Docker）** → 观察栈/litestream 需**原生化路径**，v22 指南 compose 路径不适用。
+> 外部受限项：R2 真凭证、真实 Grafana 起服、生产 cf_solver 双节点、服务商侧凭证轮换 —— 一律标「待生产/L2 授权」不伪装。
+
+| 节点 | 角色 | 内容 | 状态 |
+|---|---|---|---|
+| N1 契约审计 | explorer | 前后端字段/枚举/状态流/错误码对齐审计（28 端点 vs 96 路由深层） | ✅ 完成（contract-audit-v23.md；2 P1: F1 画廊删 Key、F2 429 字段） |
+| N2 SQL 猎杀 | worker | queries.py 慢查询/缺索引/注入/SQL 安全逐条审查 | ✅ 完成（sql-audit-v23.md；5 索引+批量写 P1 已修） |
+| N3 安全纵深 | worker | IP 限流绕过、管理接口鉴权、日志脱敏、凭证残留扫描 | ✅ 完成（security-audit-v23.md；S1/S3/S4 已修，S2/S5 生产核对项） |
+| N4 前端盲点 | worker | 空态/加载/错误/重试/防重复提交/权限展示真实路径核查 | ✅ 完成（frontend-blindspot-v23.md；P1 Costs 永久骨架屏 + P2-2 封禁确认 + P2-3 Tasks navigate 已修，前端 89 passed + tsc 0） |
+| N5 solver 双节点 | worker | mock 双节点联邦真实分流数字验证（probe_concurrency 对照） | ✅ 完成（分流 10/10 均匀；串行基准 node-1 0.18s / node-2 0.27s 与 delay 3 倍差吻合；联邦并发 2.1s 含本机 HTTP 排队污染，承接分布为硬结论） |
+| N6 部署原生化 | 主控 | litestream/prometheus/grafana systemd 原生资产 + 启用 SOP | ✅ 完成（deploy/systemd/ 6 资产 + SOP/restore 同步） |
+| N7 独立审查 | critic | 六维复验（需求/逻辑/边界/质量/覆盖/运行） | 🔄 启动中 |
+| N8 收尾 | 主控 | 版本基线决策 + HTML 报告 + 测验 + 提交/Release + skills 沉淀 | ⏳ 待 N7 |

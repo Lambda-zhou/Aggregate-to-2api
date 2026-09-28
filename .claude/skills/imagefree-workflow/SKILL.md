@@ -19,14 +19,16 @@ description: 听风AI imagefree_api 项目开发工作流指南。涉及本仓�
 - **智能体 DAG 编排 / MCP / 桌面版 / PWA** — 详见 README v21 小节
 
 技术栈：Python 3.11+ / FastAPI / uvicorn / SQLite(aiosqlite) / httpx / pydantic-v2 / React 19 + Vite 6 + TS / Vue3 landing。
-当前版本 v22.1.4（改动前先核对 pyproject.toml 实际版本，**版本全链一致性由 `tests/test_version_consistency.py` + `scripts/sync_version.py --check` 门禁**）。
+当前版本 v23.0.0（改动前先核对 pyproject.toml 实际版本，**版本全链一致性由 `tests/test_version_consistency.py` + `scripts/sync_version.py --check` 门禁**）。
 
 > **v7.7.4+ 鉴权契约**（必读）：
 > - 生图 `/v1/generate*`、聊天 `/v1/chat/*`、`/v1/messages`：**公益开放不限 Key**（仅 per-IP 限速防刷）。
-> - 管理面写操作（封禁/解封、DLQ 清空/重试、日志 WS、priority=0 队列）：**保留管理 Key 鉴权**（`IF_ADMIN_KEYS`，`check_admin_key`）。
-> - 生产真实 IP：compose subnet `172.28.0.0/16` + Dockerfile `--proxy-headers --forwarded-allow-ips` + `.env` `IF_TRUSTED_PROXIES=172.28.0.1` 三者配合。
-> - 版本 bump：`python scripts/sync_version.py --set X.Y.Z`（9 文件 + e2e_v12 契约）→ frontend/landing `npm run build`（dist 重建，防 landing dist 旧版本号测试拦）→ `pytest tests/test_version_consistency.py -q` 全绿。
-> - v22 起工具集：`scripts/uptime_probe.py`（UptimeRobot 拨测模拟）、`scripts/restore_drill.py --from-litestream`（恢复演练）、`scripts/e2e_mobile_smoke.cjs`（375 移动端冒烟）、`landing` vitest 基建（`cd landing && npm test` 组件测试）。
+> - 管理面写操作（封禁/解封、DLQ 清空/重试、日志 WS、priority=0 队列、**画廊软删**）：**保留管理 Key 鉴权**（`IF_ADMIN_KEYS`，`check_admin_key`；画廊删 scope="gallery-delete"）。
+> - 生产真实 IP：**线上 systemd 原生部署（20.204.27.154，无 Docker）**，nginx 443 → :8100；`IF_TRUSTED_PROXIES=127.0.0.1,::1`（同机反代够用；若改云 LB 私网反代需显式加入）。
+> - 版本 bump：`python scripts/sync_version.py --set X.Y.Z`（10 文件 + e2e_v12 契约；v23 起含 landing/index.html softwareVersion）→ frontend/landing `npm run build`（dist 重建）→ `pytest tests/test_version_consistency.py -q` 全绿。
+> - v22/v23 工具集：`scripts/uptime_probe.py`（UptimeRobot 拨测模拟）、`scripts/restore_drill.py --from-litestream`（恢复演练）、`scripts/e2e_mobile_smoke.cjs`（375 移动端冒烟）、`scripts/probe_federation.py`（solver 双节点联邦分流实测）、`landing` vitest 基建（`cd landing && npm test`）。
+> - v23 部署原生化：观察栈/litestream 一律走 `deploy/systemd/`（prometheus/node_exporter/grafana/litestream 独立 unit + install_observability.sh），**不再用 docker compose**。
+> - v23 安全基线：`/v1/logs/ws` 广播已脱敏（复用 log_buffer._redact）；`redis://` 与 webhook URL 日志只记 host:path；chat/DAG 限流走受信代理解析真实 IP；cancel 已补 per-IP 限流。
 > - health-report 采集降级：email_pool 源 import 走 run_in_executor+wait_for 限时（IF_SSE_HEARTBEAT_INTERVAL 心跳可配、IF_SSE_MAX_CONNECTIONS 连接上限）。
 
 线上演示：https://imagefree.hwhcie.bond （Azure，公益开放）

@@ -6,7 +6,7 @@
   <a href="#"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
   <a href="#"><img src="https://img.shields.io/badge/python-3.11+-brightgreen.svg" alt="Python"></a>
   <a href="#"><img src="https://img.shields.io/badge/docker-compose-orange.svg" alt="Docker"></a>
-  <a href="#"><img src="https://img.shields.io/badge/version-22.0.0-brightgreen.svg" alt="Version"></a>
+  <a href="#"><img src="https://img.shields.io/badge/version-23.0.0-brightgreen.svg" alt="Version"></a>
 </p>
 
 ---
@@ -280,6 +280,20 @@ node resp-audit.cjs  # 响应式 4 断点审计（375/768/1024/1440，截图归�
 - **健康检查降级**：`GET /v1/healthz` 看 `cf_solver`/`solver_status`，详见表。
 - **任务 pending**：`GET /v1/diagnostics` 看 worker `stale`、队列深度、磁盘。
 - **号池**：nanobanana 已下线，启动时不再自动补号/签到。
+
+---
+
+## ✨ v23.0.0 终局闭环（2026-09-28）
+
+7 节点终局审计（契约/SQL/安全/前端/solver/部署/独立审查）→ 修复 → 复验 → 发布：
+
+- **安全纵深**：`/v1/logs/ws` 广播脱敏（redis:// 密码、webhook 签名不外泄）+ 源头只记 host；chat/DAG 限流改受信代理解析真实 IP（反代后不塌缩单桶）；cancel 任务补 per-IP 限流。
+- **契约修复**：画廊软删前端补管理 Key（后端本就强制）+ 删除失败项保留可见；聊天 429 重试提示字段秒/分换算（后端 `retry_after_seconds`）。
+- **SQL 猎杀**：5 个幂等补索引（status_dur/day/month/model/duration）+ gallery 正向白名单；批量写失败回写带重试上限（防头部阻塞/内存增长）。
+- **前端**：Costs 预算预测无管理 Key 降级提示（不再永久骨架屏）；封禁二次确认；Tasks 空态 CTA 改 react-router。
+- **部署原生化**：线上 systemd（无 Docker）→ `deploy/systemd/` 新增 litestream/prometheus/node_exporter/grafana 独立 unit + 一键安装脚本 + 生产配置；SOP/litestream-restore/README 同步（部署见 `docs/SOP.md`）。
+- **solver 联邦实测**：`scripts/probe_federation.py` 双节点 mock 分流 10/10，均时与 delay 3× 吻合（承接分布为硬结论）。
+- 审计报告：`docs/research/*-v23.md`（7 份）+ 终局报告/测验 `docs/v23-terminal-report.html`。
 
 ---
 
