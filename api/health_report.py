@@ -68,10 +68,37 @@ async def _collect_account_pool() -> dict[str, Any]:
 
 
 async def _collect_email_pool() -> dict[str, Any]:
-    """邮箱池水位（email_pool.stats()）。"""
+    """邮箱池水位（email_pool.stats()）。
+
+    ⚠ 邮箱源模块级构建会在受限网络下做域名探测（每源 6-10s，9 源串行 45-90s）。
+    `_safe` 的 await 后兜底无法中断同步 import 阶段——import 走线程池限时放弃，
+    stats 走主 loop 异步。超时降级为错误项，避免任一源网络卡死拖垮整个 health-report（v22.1.3 修复）。
+    """
+    import asyncio
+
+    loop = asyncio.get_running_loop()
+    try:
+        email_pool = await asyncio.wait_for(
+            loop.run_in_executor(None, _import_email_pool),
+            timeout=_EMAIL_POOL_IMPORT_TIMEOUT,
+        )
+        return await email_pool.stats()
+    except asyncio.TimeoutError:
+        log.warning("health-report 采集 [email_pool] import 超时（>%ss，源域名探测慢）", _EMAIL_POOL_IMPORT_TIMEOUT)
+        return {"error": f"email_pool 源初始化超时（域名探测 >{_EMAIL_POOL_IMPORT_TIMEOUT}s）"}
+    except Exception as e:  # noqa: BLE001
+        log.warning("health-report 采集 [email_pool] 失败: %s", e)
+        return {"error": str(e)}
+
+
+_EMAIL_POOL_IMPORT_TIMEOUT = 8.0  # 秒；邮箱源模块级构建限时（E2E 契约健康面 5s 整体目标内含此段）
+
+
+def _import_email_pool():
+    """同步 import email_pool 模块（在独立线程执行，域名探测阻塞可被 wait_for 放弃）。"""
     from .email_pool import email_pool  # noqa: PLC0415
 
-    return await email_pool.stats()
+    return email_pool
 
 
 def _collect_solver(solver_guard: Any) -> dict[str, Any]:

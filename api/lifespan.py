@@ -91,6 +91,16 @@ async def lifespan(_app):
             log.info("P2-1: SSE 活动连接上限装配 = %d", sse_max)
     except Exception as e:
         log.warning("P2-1: SSE 连接上限装配失败（可忽略，0=不限制）: %s", e)
+    # v22 P1-3：SSE 心跳间隔装配（IF_SSE_HEARTBEAT_INTERVAL，0/缺省=15s 向后兼容）
+    try:
+        hb = float(getattr(config, "IF_SSE_HEARTBEAT_INTERVAL", 0) or 0)
+        if hb > 0:
+            from .sse_events import set_heartbeat_interval as _set_hb
+
+            _set_hb(hb)
+            log.info("P1-3: SSE 心跳间隔装配 = %.1fs", hb)
+    except Exception as e:
+        log.warning("P1-3: SSE 心跳间隔装配失败（可忽略，0=15s）: %s", e)
     # v8.1 P1-A3：记忆巩固后台 worker 启动（IF_MEMORY_CONSOLIDATION_ENABLED=1 时）
     try:
         from .agent.memory import MEMORY_CONSOLIDATION_ENABLED, memory_store

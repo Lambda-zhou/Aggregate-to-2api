@@ -24,7 +24,25 @@ log = logging.getLogger("sse_events")
 
 MAX_QUEUE = 50
 _MAX_EVENTS_PER_TASK = 50
-HEARTBEAT_INTERVAL = 15.0
+# v22 P1-3：SSE 心跳间隔（秒）。由 lifespan 按 IF_SSE_HEARTBEAT_INTERVAL 装配，
+# 缺省 15s 向后兼容；支持运行中调整（generator 每轮读当前值）。
+_HEARTBEAT_INTERVAL = 15.0
+
+
+def set_heartbeat_interval(seconds: float) -> None:
+    """装配心跳间隔（>0）。lifespan startup 从 config 注入；缺省保持 15s。"""
+    global _HEARTBEAT_INTERVAL
+    try:
+        v = float(seconds)
+        if v > 0:
+            _HEARTBEAT_INTERVAL = v
+    except (TypeError, ValueError):
+        pass  # 非法值忽略，保持既有心跳（不因装配失败改行为）
+
+
+def heartbeat_interval() -> float:
+    """当前心跳间隔（秒）。"""
+    return _HEARTBEAT_INTERVAL
 
 # v8.0 P1-6: 心跳 sequence number 全局计数器（客户端可检测丢包）
 _hb_seq = 0
@@ -211,7 +229,7 @@ async def task_events_generator(task_id: str, request) -> Any:
                     pass
                 break
             try:
-                msg = await asyncio.wait_for(queue.get(), timeout=HEARTBEAT_INTERVAL)
+                msg = await asyncio.wait_for(queue.get(), timeout=heartbeat_interval())
             except TimeoutError:
                 # v8.0 P1-6: 心跳带 sequence number，客户端可检测丢包
                 yield _sse_encode("ping", {"msg": "heartbeat", "seq": _next_heartbeat_seq()}, -1)

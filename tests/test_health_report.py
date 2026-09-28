@@ -297,3 +297,55 @@ async def test_endpoint_error_item_still_200(health_app, monkeypatch):
     resp = await _request(health_app, "GET", "/v1/admin/health-report")
     assert resp.status_code == 200
     assert "error" in resp.json()["solver"]
+
+
+# ── v22.1.3: email_pool import 阻塞限时降级 ───────────────────
+import asyncio
+
+
+async def test_collect_email_pool_import_timeout_degrades():
+    """import 阻塞（域名探测慢）→ 8s 内返回错误项而非无限等待（E2E 契约 16c/16d 修复）。"""
+    import api.health_report as hr
+
+    # 模拟 import 卡死（同步阻塞线程内，验证 wait_for 超时放弃）
+    import time as _time
+
+    def _fake_slow_import():
+        _time.sleep(30)
+        raise AssertionError("不应走到这里")  # pragma: no cover
+
+    hr._import_email_pool = _fake_slow_import  # type: ignore[assignment]
+    # 缩短超时便于测试（5s→0.1s）
+    hr._EMAIL_POOL_IMPORT_TIMEOUT = 0.1
+    try:
+        item = await hr._collect_email_pool()
+        assert "error" in item
+        assert "超时" in item["error"]
+    finally:
+        hr._EMAIL_POOL_IMPORT_TIMEOUT = 8.0
+
+
+async def test_collect_email_pool_ok_path():
+    """import+stats 正常 → 返回 stats dict。"""
+    import api.health_report as hr
+
+    class _FakePool:
+        async def stats(self):
+            return {"total": 3, "sources": ["a", "b"]}
+
+    hr._import_email_pool = lambda: _FakePool()  # type: ignore[assignment]
+    item = await hr._collect_email_pool()
+    assert item == {"total": 3, "sources": ["a", "b"]}
+
+
+async def test_collect_email_pool_exception_degrades():
+    """import 抛异常 → 错误项（不拖垮聚合）。"""
+    import api.health_report as hr
+
+    def _raise():
+        raise RuntimeError("boom")
+
+    hr._import_email_pool = _raise  # type: ignore[assignment]
+    item = await hr._collect_email_pool()
+    assert "error" in item
+    assert "boom" in item["error"]

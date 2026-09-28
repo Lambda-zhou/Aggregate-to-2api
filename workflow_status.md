@@ -87,3 +87,10 @@ T10 ──► T11（独立审查）──► T12（报告）──► T13（沉�
 | A / P1-1 | explorer | 测试文件引用核对 + 失效修复 | 🔄 ac95b71b00119ff68 |
 | B / P1-4 | worker | 375 视口移动端 Playwright 冒烟（真实 chromium） | 🔄 a4a0e03455c34859d |
 | C / P1-3 | 决策 | PwaInstallPrompt 组件测试：landing 无 vitest → 由 B 的移动端冒烟覆盖 UI 行为，不引 Vue 测试栈 | ✅ 已决策 |
+
+## v22.1.3 SSE 心跳参数化 + 真实 E2E 批（2026-09-28）
+
+| 子任务 | 内容 | 状态 |
+|---|---|---|
+| A / SSE 心跳参数化 | IF_SSE_HEARTBEAT_INTERVAL 配置 + set_heartbeat_interval()/heartbeat_interval() + ws_events 动态读 + lifespan 装配 + env 模板 + 3 单测 | ✅ 已完成（sse 27 passed + config 绿） |
+| B / 真实 E2E 契约 | mock_cfsolver + uvicorn + e2e_v12.py 全契约 | 🔄 acb242cebcf9f4bbe |

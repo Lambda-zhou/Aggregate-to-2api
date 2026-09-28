@@ -21,11 +21,11 @@ from typing import Any
 from fastapi import WebSocket, WebSocketDisconnect
 from starlette.websockets import WebSocketState
 
-from .sse_events import HEARTBEAT_INTERVAL, hub
+from .sse_events import heartbeat_interval, hub
 
 log = logging.getLogger("ws_events")
 
-_WS_HEARTBEAT_INTERVAL = HEARTBEAT_INTERVAL  # 15s，与 SSE 一致
+_WS_HEARTBEAT_INTERVAL = heartbeat_interval()  # 与 SSE 一致（动态读当前值，装配后可调）
 
 
 def _ws_encode(event: str, data: dict, seq: int) -> str:

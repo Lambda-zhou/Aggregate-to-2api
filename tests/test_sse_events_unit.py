@@ -200,7 +200,7 @@ class FakeRequest:
 async def test_generator_replays_last_event_id_then_live(monkeypatch):
     import api.sse_events as se
 
-    monkeypatch.setattr(se, "HEARTBEAT_INTERVAL", 0.05)
+    monkeypatch.setattr(se, "_HEARTBEAT_INTERVAL", 0.05)
     await hub.publish("tg1", "status", {"s": "pending"})
     await hub.publish("tg1", "progress", {"p": 50})
     all_ev = await hub.replay_after("tg1", None)
@@ -217,7 +217,7 @@ async def test_generator_replays_last_event_id_then_live(monkeypatch):
 async def test_generator_breaks_on_terminal_event(monkeypatch):
     import api.sse_events as se
 
-    monkeypatch.setattr(se, "HEARTBEAT_INTERVAL", 0.05)
+    monkeypatch.setattr(se, "_HEARTBEAT_INTERVAL", 0.05)
     req = FakeRequest(headers={}, disconnect_after=30)
 
     async def _publish_terminal():
@@ -236,7 +236,7 @@ async def test_generator_invalid_last_event_id_ignored(monkeypatch):
     """Last-Event-ID 非数字 → 视为无补偿，全量回放。"""
     import api.sse_events as se
 
-    monkeypatch.setattr(se, "HEARTBEAT_INTERVAL", 0.05)
+    monkeypatch.setattr(se, "_HEARTBEAT_INTERVAL", 0.05)
     await hub.publish("tg3", "status", {})
     req = FakeRequest(headers={"Last-Event-ID": "not-a-number"}, disconnect_after=1)
     chunks = [c async for c in task_events_generator("tg3", req)]
@@ -249,7 +249,7 @@ async def test_generator_heartbeat_on_timeout(monkeypatch):
     """队列空闲超时 → 发心跳。"""
     import api.sse_events as se
 
-    monkeypatch.setattr(se, "HEARTBEAT_INTERVAL", 0.05)
+    monkeypatch.setattr(se, "_HEARTBEAT_INTERVAL", 0.05)
     req = FakeRequest(headers={}, disconnect_after=3)
     chunks = [c async for c in task_events_generator("tg4", req)]
     joined = "".join(chunks)
@@ -323,3 +323,35 @@ async def test_generator_limit_error_yields_429():
     joined = "".join(chunks)
     assert '"code": 429' in joined and "event: error" in joined
     hub.set_max_connections(0)
+
+
+# ── v22 P1-3: SSE 心跳间隔参数化 ───────────────────────────
+def test_heartbeat_interval_default_15():
+    """缺省心跳 15s（向后兼容）。"""
+    import api.sse_events as se
+
+    se._HEARTBEAT_INTERVAL = 15.0
+    assert se.heartbeat_interval() == 15.0
+
+
+def test_set_heartbeat_interval_updates():
+    """set_heartbeat_interval 装配有效值 → generator 心跳间隔更新。"""
+    import api.sse_events as se
+
+    se.set_heartbeat_interval(3.5)
+    assert se.heartbeat_interval() == 3.5
+    se.set_heartbeat_interval(15.0)  # 还原
+
+
+def test_set_heartbeat_interval_invalid_ignored():
+    """非法值（0/负/非数字）→ 保持既有心跳，不改变行为。"""
+    import api.sse_events as se
+
+    se.set_heartbeat_interval(5.0)
+    se.set_heartbeat_interval(0)
+    assert se.heartbeat_interval() == 5.0  # 0 忽略
+    se.set_heartbeat_interval(-1)
+    assert se.heartbeat_interval() == 5.0  # 负忽略
+    se.set_heartbeat_interval("abc")
+    assert se.heartbeat_interval() == 5.0  # 非数字忽略
+    se.set_heartbeat_interval(15.0)  # 还原
