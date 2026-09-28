@@ -1,0 +1,28 @@
+# Prometheus 指标抓取 — systemd 单元（生产 20.204.27.154，无 Docker）
+# v23 P1-2（独立审查修正）：原来单文件塞 3 组 unit，systemd 只认最后一组 ExecStart，
+# prometheus/node_exporter 永不启动。现拆为独立 unit。
+# 依赖：/usr/local/bin/prometheus 二进制（见 install_observability.sh）+ deploy/prometheus.yml
+# 装载：cp deploy/systemd/prometheus.service /etc/systemd/system/imagefree-prometheus.service
+
+[Unit]
+Description=Prometheus — imagefree 指标抓取
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+ExecStart=/usr/local/bin/prometheus \
+  --config.file=/opt/imagefree-api/deploy/prometheus.yml \
+  --storage.tsdb.path=/var/lib/imagefree-prometheus \
+  --storage.tsdb.retention.time=30d \
+  --web.listen-address=127.0.0.1:9090
+Restart=on-failure
+RestartSec=5s
+# 数据目录所属（install 脚本已 chown ubuntu）
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

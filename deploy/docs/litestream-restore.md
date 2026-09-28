@@ -1,15 +1,61 @@
 # Litestream 异地备份恢复流程
 
-> 配套：`deploy/litestream.yml` + `docker-compose.yml` 的 `backup` profile。
+> 配套：`deploy/litestream.yml` + **systemd 原生（生产 20.204.27.154，无 Docker，v23 专用路径）**
+> 或 **docker-compose backup profile（仅 Docker 环境，见 §docker-compose）**。
 > 适用场景：本地 SQLite 损坏 / 误删 / 整机故障，从 R2/S3 异地副本恢复。
 
-## 前置条件
+## systemd 原生恢复（生产默认路径）
 
-1. 已按 `deploy/litestream.yml` 启用 backup profile 跑过一段时间，WAL 已复制到对象存储。
-2. 取得 R2/S3 凭证：`LITESTREAM_ACCESS_KEY_ID` / `LITESTREAM_SECRET_ACCESS_KEY` / endpoint / bucket。
-3. 在恢复机准备空目录（避免与现有库冲突），如 `./restore-data/`。
+### 前置条件
 
-## 恢复流程（按库逐个执行）
+1. 已按 `deploy/systemd/litestream.yml.prod` + `deploy/systemd/litestream.service` 启用 `imagefree-litestream` 跑过一段时间，WAL 已复制到对象存储。
+2. 取得 R2/S3 凭证：`LITESTREAM_ACCESS_KEY_ID` / `LITESTREAM_SECRET_ACCESS_KEY` / endpoint / bucket（已写入 `/opt/imagefree-api/.env`）。
+3. 恢复目标机有 litestream 二进制（`/usr/local/bin/litestream`）或下载：[litestream.io](https://litestream.io/install/)。
+
+### 恢复流程（按库逐个执行）
+
+```bash
+# 1. 停业务服务（避免恢复期写库）
+sudo systemctl stop imagefree-api
+
+# 2. 用生产配置恢复（litestream.service 的 ExecStart 指向 deploy/litestream.yml——
+#    启用流程已 cp deploy/systemd/litestream.yml.prod deploy/litestream.yml，与真实 data 对齐）
+#    恢复到临时目录，先不覆盖业务库
+mkdir -p /opt/imagefree-api/restore-data
+sudo -u ubuntu /usr/local/bin/litestream restore \
+  -config /opt/imagefree-api/deploy/litestream.yml \
+  -o /opt/imagefree-api/restore-data/imagefree.db \
+  /opt/imagefree-api/data/imagefree.db
+
+# 3. 校验完整性
+sqlite3 /opt/imagefree-api/restore-data/imagefree.db "PRAGMA integrity_check;"   # 期望 ok
+sqlite3 /opt/imagefree-api/restore-data/imagefree.db "SELECT COUNT(*) FROM requests;"  # 与业务量对比
+
+# 4. 切换回业务（保留原库为 .broken 备查）
+sudo cp /opt/imagefree-api/data/imagefree.db /opt/imagefree-api/data/imagefree.db.broken
+sudo cp /opt/imagefree-api/restore-data/imagefree.db /opt/imagefree-api/data/imagefree.db
+sudo systemctl start imagefree-api
+curl -s http://127.0.0.1:8100/v1/healthz | head -c 200   # status ok
+
+# 5. 恢复 litestream 继续复制（unit 已在 run 会从当前 WAL 续写）
+sudo systemctl restart imagefree-litestream && journalctl -u imagefree-litestream -n 10 | grep -i replicating
+```
+
+若 `litestream.yml.prod` 未启用仍走**本地每日备份**：`scripts/restore_drill.py --backup-dir /opt/imagefree-api/backups`（v20.3.6 起，RPO=24h 兜底）。
+
+### 自动化恢复演练（v21+v23，非破坏：临时目录验证）
+
+```bash
+# 本地备份演练（已有）
+/opt/imagefree-api/.venv/bin/python scripts/restore_drill.py --backup-dir /opt/imagefree-api/backups --dbs imagefree
+# 从 litestream 副本演练（需 litestream 二进制 + 配置，v21 起）
+/opt/imagefree-api/.venv/bin/python scripts/restore_drill.py --from-litestream \
+  --config /opt/imagefree-api/deploy/litestream.yml --dbs imagefree
+```
+
+---
+
+## docker compose 恢复（仅 Docker 环境备选）
 
 ### 1. 临时恢复容器（不挂业务卷，只跑 litestream restore）
 

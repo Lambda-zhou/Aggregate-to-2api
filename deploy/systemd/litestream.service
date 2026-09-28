@@ -1,0 +1,38 @@
+# Litestream 秒级 WAL 异地复制 — systemd 单元（生产 systemd 原生部署）
+# 确认事实：线上 20.204.27.154 无 Docker（systemd 直跑），本 unit 替代 docker compose backup profile。
+# 前置：
+#   1) 服务器装 litestream 二进制（见 install_observability.sh，或手动 cp /usr/local/bin/litestream）
+#   2) 填 R2 凭证到 /opt/imagefree-api/.env（勿写死在本 unit）：
+#        LITESTREAM_ACCESS_KEY_ID=<R2/S3 access key>
+#        LITESTREAM_SECRET_ACCESS_KEY=<R2/S3 secret key>
+#        LITESTREAM_S3_BUCKET=imagefree-backups
+#   3) 用 deploy/systemd/litestream.yml.prod 替换 deploy/litestream.yml（路径 /opt→与真实 data 对齐）
+# 装载：
+#   cp deploy/systemd/litestream.service /etc/systemd/system/imagefree-litestream.service
+#   systemctl daemon-reload && systemctl enable --now imagefree-litestream
+
+[Unit]
+Description=imagefree SQLite WAL 秒级异地复制（R2/S3）
+Documentation=file:///opt/imagefree-api/deploy/docs/litestream-restore.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+# 生产实际路径（git clone 到 /opt/deploy/imagefree 或 /opt/imagefree-api 部署目录，按实际改）
+WorkingDirectory=/opt/imagefree-api
+# unit 内不写死在 yml（yml 已用环境变量），但需把 yml 指向生产 data 目录
+ExecStart=/usr/local/bin/litestream replicate -config /opt/imagefree-api/deploy/litestream.yml
+# 从 .env 加载 R2 凭证（不写 unit EnvironmentFile 明文，防泄漏）
+EnvironmentFile=-/opt/imagefree-api/.env
+# 失败自动重启（litestream 短暂断开 WAL 会小段丢，长退直接拉起）
+Restart=on-failure
+RestartSec=5s
+# 日志
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

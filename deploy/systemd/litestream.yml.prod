@@ -1,0 +1,58 @@
+# Litestream 生产配置 — systemd 原生部署版（20.204.27.154，无 Docker）
+# 与 deploy/litestream.yml 的唯一差异：db path 指向生产真实 data 目录 /opt/imagefree-api/data/
+# 启用：systemctl enable --now imagefree-litestream（unit 见 deploy/systemd/litestream.service）
+# 凭证：环境变量注入（unit 已 EnvironmentFile=/opt/imagefree-api/.env），勿硬编码
+# 恢复流程：deploy/docs/litestream-restore.md（systemd 版恢复见该文档 §systemd）
+
+dbs:
+  # 主任务库
+  - path: /opt/imagefree-api/data/imagefree.db
+    replicas:
+      - type: s3
+        endpoint: ${LITESTREAM_S3_ENDPOINT:-https://<ACCOUNT_ID>.r2.cloudflarestorage.com}
+        bucket: ${LITESTREAM_S3_BUCKET:-imagefree-backups}
+        path: ${LITESTREAM_S3_PATH:-imagefree/imagefree.db}
+        access-key-id: ${LITESTREAM_ACCESS_KEY_ID}
+        secret-access-key: ${LITESTREAM_SECRET_ACCESS_KEY}
+        region: ${LITESTREAM_S3_REGION:-auto}
+        sync-interval: 1s
+        retention: 72h
+        retention-check-interval: 1h
+        snapshot-interval: 1h
+
+  # 号池库
+  - path: /opt/imagefree-api/data/account_pool.db
+    replicas:
+      - type: s3
+        endpoint: ${LITESTREAM_S3_ENDPOINT:-https://<ACCOUNT_ID>.r2.cloudflarestorage.com}
+        bucket: ${LITESTREAM_S3_BUCKET:-imagefree-backups}
+        path: ${LITESTREAM_S3_PATH:-imagefree/account_pool.db}
+        access-key-id: ${LITESTREAM_ACCESS_KEY_ID}
+        secret-access-key: ${LITESTREAM_SECRET_ACCESS_KEY}
+        region: ${LITESTREAM_S3_REGION:-auto}
+        sync-interval: 1s
+        retention: 72h
+        retention-check-interval: 1h
+        snapshot-interval: 1h
+
+  # 邮箱池库
+  - path: /opt/imagefree-api/data/email_registry.db
+    replicas:
+      - type: s3
+        endpoint: ${LITESTREAM_S3_ENDPOINT:-https://<ACCOUNT_ID>.r2.cloudflarestorage.com}
+        bucket: ${LITESTREAM_S3_BUCKET:-imagefree-backups}
+        path: ${LITESTREAM_S3_PATH:-imagefree/email_registry.db}
+        access-key-id: ${LITESTREAM_ACCESS_KEY_ID}
+        secret-access-key: ${LITESTREAM_SECRET_ACCESS_KEY}
+        region: ${LITESTREAM_S3_REGION:-auto}
+        sync-interval: 1s
+        retention: 72h
+        retention-check-interval: 1h
+        snapshot-interval: 1h
+
+# 不监控 edit_leases.db（短时互斥租约）
+
+logging:
+  level: INFO
+  type: text
+  stdout: true

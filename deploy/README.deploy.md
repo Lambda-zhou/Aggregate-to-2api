@@ -1,5 +1,10 @@
 # imagefree-api 服务器部署（腾讯云东京 43.165.173.36）
 
+> ⚠️ **v23 迁移警示（过时）**：本文档描述**旧腾讯云 Docker 部署**（imagefree.tingfengai.art / Caddy / compose）。
+> **当前生产**：Azure `20.204.27.154` + **systemd 原生部署**（无 Docker）+ nginx，公网 `https://imagefree.hwhcie.bond`。
+> **最新部署/运维/排障请以 `docs/SOP.md` 为准**（含 v23 systemd 原生观察栈/litestream/cf_solver 双节点启用）。
+> 本文件保留供历史参考与 Docker 环境回退，勿在 Azure 生产执行其中命令。
+
 > 部署目录：`/home/ubuntu/imagefree-api`
 > Docker Compose 编排 `cfsolver`(8001, 内部) + `api`(8100, 公网)。
 > **已上线公网**：`https://imagefree.tingfengai.art`（Caddy 自动 HTTPS）。

@@ -1,0 +1,34 @@
+# Prometheus 抓取配置 — systemd 原生部署版（20.204.27.154，无 Docker）
+# 与 deploy/prometheus.yml 的差异：target 用 127.0.0.1:8100（同机，非容器网络名）
+# 启用：systemctl enable --now imagefree-prometheus（unit 见 deploy/systemd/observability.service）
+# 验证：curl -s "http://127.0.0.1:9090/api/v1/query" --data-urlencode 'query=up{job="imagefree-api"}'
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: imagefree
+    env: production
+
+scrape_configs:
+  # imagefree API /metrics（同机）
+  - job_name: imagefree-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['127.0.0.1:8100']
+        labels:
+          service: imagefree-api
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: imagefree-api
+
+  # node 宿主系统指标（同机）+ 自监控
+  - job_name: node
+    static_configs:
+      - targets: ['127.0.0.1:9100']
+        labels:
+          service: host
+  - job_name: prometheus
+    static_configs:
+      - targets: ['127.0.0.1:9090']

@@ -105,12 +105,12 @@ systemctl start imagefree-api
 - 前置：提供 R2/S3 凭证后，用 litestream 或 rclone 把 backups/ 推送到异地对象存储（RPO 秒级）
 - 凭证就绪前保持本地 cron 每日备份（RPO=24h 兜底）
 
-**litestream 秒级异地副本启用（v21.0.0，RPO 24h→秒级）**：
-- compose sidecar 已定义（`deploy/docker-compose.yml` L228-255 `litestream` 服务，`--profile backup`），配置完整 `deploy/litestream.yml`（imagefree/account_pool/email_registry 三库，sync-interval=1s，retention=72h），凭证经环境变量注入（勿硬编码）
-- 启用三步：
-  1. `deploy/.env` 填 `LITESTREAM_ACCESS_KEY_ID` / `LITESTREAM_SECRET_ACCESS_KEY` / `LITESTREAM_S3_BUCKET`（R2 的 S3 兼容凭证；模板见 `deploy/.env.production.example` §9）
-  2. `cd deploy && docker compose --profile backup up -d`
-  3. 验证：`docker logs imagefree-litestream 2>&1 | grep -i "replicating"`；`litestream generations -config deploy/litestream.yml`
+**litestream 秒级异地副本启用（v21.0.0 规划 / v23 systemd 原生落地，RPO 24h→秒级）**：
+- **systemd 原生路径（生产 20.204.27.154，无 Docker，v23 推荐）**：配置 `deploy/systemd/litestream.yml.prod`（三库 sync-interval=1s、retention=72h，路径 /opt/imagefree-api/data/）+ unit `deploy/systemd/litestream.service`（EnvironmentFile=/opt/imagefree-api/.env 注入凭证）。启用三步：
+  1. `deploy/.env` 填 `LITESTREAM_ACCESS_KEY_ID` / `LITESTREAM_SECRET_ACCESS_KEY` / `LITESTREAM_S3_BUCKET`（R2 的 S3 兼容凭证；模板见 `deploy/.env.production.example`）
+  2. `cp deploy/systemd/litestream.yml.prod deploy/litestream.yml && cp deploy/systemd/litestream.service /etc/systemd/system/imagefree-litestream.service && systemctl daemon-reload && systemctl enable --now imagefree-litestream`
+  3. 验证：`journalctl -u imagefree-litestream | grep -i replicating`；`litestream generations -config deploy/litestream.yml`
+- **compose 路径（仅 Docker 环境）**：`cd deploy && docker compose --profile backup up -d` 等（见 git 历史 v21 段，不适用生产）
 - 本地验收（无外网凭证也可验证机制）：临时 `deploy/litestream.local.yml`（`type: local` 副本）→ `litestream replicate -config deploy/litestream.local.yml` → `litestream restore -config deploy/litestream.local.yml -o restore-test/` diff 行数一致 → 验收后删除临时文件
 - 恢复演练：`scripts/restore_drill.py --from-litestream`（v21 扩展，用副本还原到临时目录 diff）
 - 恢复操作序：见 `deploy/docs/litestream-restore.md`
@@ -147,25 +147,48 @@ systemctl start imagefree-api
 已闭环项记录在 `docs/verification-log.md` + workflow_status「已验证勿重做」——
 新任务先查该清单，避免重复跑同一测试/优化。
 
-## 观察栈与 solver 双节点启用（v22 P0-2/P0-3，Docker 环境）
+## 观察栈与 solver 双节点启用（v22 P0-2/P0-3，v23 修正为 systemd 原生路径）
 
-### 观察栈（Grafana + Prometheus，compose obs profile）
+> **v23 关键修正**：生产 `20.204.27.154` **无 Docker**（systemd 直跑 uvicorn + nginx）。
+> v22 指南的 `docker compose` 路径**不适用**，一律用 `deploy/systemd/` 原生资产。
+
+### 观察栈（Grafana + Prometheus + node_exporter，systemd 原生）
 ```bash
-cd /opt/imagefree-api/deploy && docker compose --profile obs up -d prometheus grafana
+# 一键装载（deploy/systemd/install_observability.sh：下载二进制 + chown 目录 + 装三 unit + 启服）
+cd /opt/imagefree-api && bash deploy/systemd/install_observability.sh
+# 等价手动路径（三服务独立 unit，v23 P1-2 修正：不得再合并单文件）：
+#   systemctl daemon-reload && systemctl enable --now imagefree-prometheus imagefree-node-exporter imagefree-grafana
 # 验证：prometheus 抓取 api 指标成功
-curl -s "http://localhost:9090/api/v1/query" --data-urlencode 'query=up{job="imagefree-api"}' | grep -o '"value".*' | head -1
-# 浏览器 http://<host>:3000（admin/admin 或 .env GRAFANA_ADMIN_*）→ imagefree-overview + slo-budget 面板应有数据
+curl -s "http://127.0.0.1:9090/api/v1/query" --data-urlencode 'query=up{job="imagefree-api"}' | head -c 300
+# 浏览器 http://<host>:3000（admin / .env GF_ADMIN_PASSWORD）→ imagefree-overview + slo-budget 面板应有数据
 # 真实指标名前缀 imagefree_*（勿臆造 http_request_duration_seconds）
+# 配置：deploy/systemd/prometheus.yml.prod（target 127.0.0.1:8100 同机）；grafana provisioning 在 deploy/grafana/
 ```
 
-### cf_solver 第二节点（真瓶颈缓解，compose 多节点）
+### litestream 秒级异地复制（systemd 原生，替代 compose backup profile）
 ```bash
-# deploy/docker-compose.yml 已注释两种扩展（L19-34）：
-# (a) Swarm replicas: 取消注释 deploy.replicas: 3（需 docker swarm init）
-# (b) 单机副本: 复制 cfsolver service 块为 cfsolver2 + container_name 改 imagefree-cfsolver2
-# 再改 api 环境段：
-#   IF_CF_SOLVER_URLS=http://cfsolver:8001,http://cfsolver2:8001
+# 1. R2 凭证填 /opt/imagefree-api/.env（LITESTREAM_ACCESS_KEY_ID / SECRET_ACCESS_KEY / S3_BUCKET）
+# 2. 用生产配置替换（litestream.yml.prod 已指向 /opt/imagefree-api/data/，与真实库对齐）：
+cp deploy/systemd/litestream.yml.prod deploy/litestream.yml
+# 3. 装载 unit 并启用
+cp deploy/systemd/litestream.service /etc/systemd/system/imagefree-litestream.service
+systemctl daemon-reload && systemctl enable --now imagefree-litestream
+# 4. 验证
+journalctl -u imagefree-litestream -n 30 | grep -i "replicating"
+# 本地无 R2 凭证时可先 type:local 验收机制：临时 litestream.local.yml（type: local）→
+#   litestream replicate -config litestream.local.yml → litestream restore -config litestream.local.yml -o restore-test/ diff
+```
+
+### cf_solver 第二节点（真瓶颈缓解，systemd 原生多实例）
+```bash
+# 方案：复制 imagefree-cfsolver.service 为 imagefree-cfsolver2.service（改 WorkingDirectory 不变、
+#   Environment 里端口 --port 9001），再加另一实例监听 :8002：
+cp /etc/systemd/system/imagefree-cfsolver.service /etc/systemd/system/imagefree-cfsolver2.service
+#   编辑 cfsolver2.service：ExecStart 追加 --port 8002（或 fallback 到配置端口）
+# 再改 api 的 Environment（/etc/systemd/system/imagefree-api.service 内）：
+#   IF_CF_SOLVER_URLS=http://127.0.0.1:8001,http://127.0.0.1:8002
+#   IF_SOLVER_NODE_WEIGHTS=1,1   # 按需加权
+systemctl daemon-reload && systemctl restart imagefree-cfsolver imagefree-cfsolver2 imagefree-api
 # solver_guard 已支持多节点加权最少在途调度 + 熔断 failover（无需改 api/ 源码）
-# 加权：IF_SOLVER_NODE_WEIGHTS 按需配置
-# 验收：python scripts/probe_concurrency.py --solver-threads 20（对比单/双节点均时）
+# 验收：py scripts/probe_federation.py（v23 新增，mock 双节点真实分流数字对照）
 ```

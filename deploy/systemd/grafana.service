@@ -1,0 +1,34 @@
+# Grafana 监控面板 — systemd 单元（生产 20.204.27.154，无 Docker）
+# v23 P1-2（独立审查修正）：独立 unit（原合并进 observability.service 永不启动）。
+# 依赖：/usr/local/bin/grafana-server 二进制（Grafana OSS tar 内为 bin/grafana-server，
+#       install_observability.sh 已安装别名）、deploy/grafana/ 面板与 provisioning
+# 装载：cp deploy/systemd/grafana.service /etc/systemd/system/imagefree-grafana.service
+
+[Unit]
+Description=Grafana — imagefree 监控面板
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+ExecStart=/usr/local/bin/grafana-server \
+  --homepath=/opt/imagefree-api/deploy/grafana \
+  --config=/opt/imagefree-api/deploy/grafana/custom.ini \
+  --packaging=standalone
+WorkingDirectory=/opt/imagefree-api/deploy/grafana
+# 数据目录（sqlite dashboards/datasources 元数据；install 脚本已 mkdir + chown ubuntu）
+Environment=GF_PATHS_DATA_DIR=/var/lib/imagefree-grafana
+Environment=GF_PATHS_LOGS=/var/log/imagefree-grafana
+Environment=GF_PATHS_PLUGINS=/opt/imagefree-api/deploy/grafana/plugins
+# 仅本机监听（面板经 nginx basic-auth 反代对外）；密码从 /opt/imagefree-api/.env 注入
+EnvironmentFile=-/opt/imagefree-api/.env
+Environment=GF_AUTH_ANONYMOUS_ENABLED=true
+Restart=on-failure
+RestartSec=5s
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

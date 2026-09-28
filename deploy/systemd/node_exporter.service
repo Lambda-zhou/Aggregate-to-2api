@@ -1,0 +1,24 @@
+# node_exporter 宿主系统指标 — systemd 单元（生产 20.204.27.154，无 Docker）
+# v23 P1-2（独立审查修正）：独立 unit（原合并进 observability.service 永不启动）。
+# 依赖：/usr/local/bin/node_exporter 二进制（见 install_observability.sh）
+# 装载：cp deploy/systemd/node_exporter.service /etc/systemd/system/imagefree-node-exporter.service
+
+[Unit]
+Description=node_exporter — imagefree 宿主系统指标
+After=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+ExecStart=/usr/local/bin/node_exporter \
+  --web.listen-address=127.0.0.1:9100 \
+  --collector.filesystem.mount-points-exclude='^/(sys|proc|dev|run|var/lib)' \
+  --collector.filesystem.fs-types-exclude='^(tmpfs|autofs|overlay)'
+Restart=on-failure
+RestartSec=5s
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
