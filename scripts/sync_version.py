@@ -35,10 +35,17 @@ TARGETS: list[tuple[str, str, str]] = [
     ("desktop/src-tauri/tauri.conf.json", r'"version": "([^"]+)"', '"version": "{v}"'),
     ("desktop/src-tauri/Cargo.toml", r'^version = "([^"]+)"', 'version = "{v}"'),
     ("README.md", r"version-([0-9]+\.[0-9]+\.[0-9]+)", "version-{v}"),
+    # v23 补位：landing/index.html 的 JSON-LD softwareVersion（v22 起防漂移注释已声明，
+    # 但 sync_version 未覆盖 → 每次 bump 手动改易漂移；纳入全链工具。单捕获组=版本号，
+    # 与 current_versions 的 m.group(1) 提取契约一致）
+    ("landing/index.html", r'"softwareVersion"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)"', '"softwareVersion": "{v}"'),
 ]
 
 # e2e_v12.py 契约断言版本（正则捕获整数字面量）
 E2E_PATTERN = r'"(\d+\.\d+\.\d+)"'
+
+# v23 可选文件：存在则纳入全链校验，缺失（如测试 tmp 树）不判失败
+OPTIONAL_TARGETS = {"landing/index.html"}
 
 
 def read(path: Path) -> str:
@@ -50,12 +57,16 @@ def write(path: Path, text: str) -> None:
 
 
 def current_versions() -> dict[str, str]:
-    """读取各源当前版本，返回 {相对路径: 版本}。"""
+    """读取各源当前版本，返回 {相对路径: 版本}。
+
+    可选文件（OPTIONAL_TARGETS）缺失时返回 "<OPTIONAL>"（check 容忍、set 跳过），
+    兼容仅含核心文件的测试树（SYNC_VERSION_ROOT 注入 tmp）。
+    """
     out: dict[str, str] = {}
     for rel, pattern, _ in TARGETS:
         p = ROOT / rel
         if not p.exists():
-            out[rel] = "<MISSING>"
+            out[rel] = "<OPTIONAL>" if rel in OPTIONAL_TARGETS else "<MISSING>"
             continue
         m = re.search(pattern, read(p), flags=re.MULTILINE)
         out[rel] = m.group(1) if m else "<UNPARSED>"
@@ -97,6 +108,7 @@ def main() -> int:
         ap.error("必须指定 --set X.Y.Z 或 --check")
 
     versions = current_versions()
+    # 可选文件（如 landing/index.html）缺失不判失败（check 容忍、set 跳过）
     missing = [k for k, v in versions.items() if v in ("<MISSING>", "<UNPARSED>")]
     ok = not missing
 
@@ -107,7 +119,7 @@ def main() -> int:
         if missing:
             print(f"  !! 缺失/无法解析: {missing}")
             return 1
-        values = [v for v in versions.values() if v != "<MISSING>"]
+        values = [v for v in versions.values() if v not in ("<MISSING>", "<OPTIONAL>")]
         if len(set(values)) > 1:
             print(f"  !! 漂移: {values}")
             return 1
@@ -129,6 +141,9 @@ def main() -> int:
     for rel, pattern, replacement in TARGETS:
         p = ROOT / rel
         if not p.exists():
+            if rel in OPTIONAL_TARGETS:
+                print(f"  ~ {rel}: 可选文件缺失，跳过")
+                continue
             print(f"  !! {rel}: 文件缺失")
             ok = False
             continue
